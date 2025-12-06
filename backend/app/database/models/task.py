@@ -6,7 +6,7 @@ class Task(Base):
     id = Column(Integer, primary_key=True)
     ownerid = Column(String index=True)
     title = Column(Integer,index=True)
-    time = Column(DateTime)
+    createdtime = Column(DateTime)
     description = Column(Text)
     deadline = Column(DateTime)
 
