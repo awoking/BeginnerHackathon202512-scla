@@ -7,7 +7,7 @@ class User(Base):
     __tabename__ = "users"
     id = Column(Intenger, priary_key=True)
     username = Column(String,unique=True,index = True)
-    passwaord_hash = Column(String)
+    hashed_passwaord = Column(String)
     
     teams = relationship("TeamMember", back_populates="user")
     memberships = relationship("Membership", back_populates="user")
