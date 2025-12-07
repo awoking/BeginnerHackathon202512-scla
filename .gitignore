@@ -8,4 +8,3 @@ backend/app/models/__pycache__/user.cpython-313.pyc
 backend/app/routers/__pycache__/users.cpython-313.pyc
 backend/app/schemas/__pycache__/team.cpython-313.pyc
 backend/app/schemas/__pycache__/user.cpython-313.pyc
-.gitignore
