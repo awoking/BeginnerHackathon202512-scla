@@ -2,15 +2,14 @@
 from sqlalchemy import Column, Integer, String
 from sqlalchemy.orm import relationship
 from app.database.session import Base #sessionで定義した親クラスを参照している。
-
 class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True)
     username = Column(String,unique=True,index = True)
     hashed_password = Column(String)
     
-    teams = relationship("Membership", back_populates="user")
     memberships = relationship("Membership", back_populates="user")
+    tasks = relationship("Task", back_populates="owner")
 
 
 

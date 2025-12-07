@@ -23,11 +23,11 @@ class Task(Base):
 
 
 #中間テーブル
-reders = Table(
-    "reders",
+readers = Table(
+    "readers",
     Base.metadata,
-    Column("task_id", Integer, ForeignKey("tasks.id"),index=True),
-    Column("userid", Integer, ForeignKey("user.id"),index=True),
+    Column("task_id", Integer, ForeignKey("tasks.id"), index=True),
+    Column("user_id", Integer, ForeignKey("users.id"), index=True),  # ← 正しい参照名
 )
 
 

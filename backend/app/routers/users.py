@@ -25,20 +25,27 @@ def create_user(user_in: UserCreate, db: Session = Depends(get_db)):
     hashed_pw = hash_password(user_in.password)
 
     #ユーザー作成。今はそのままだけどあとでpasswordをbcrypt化します。
-    newuser = User(
+    new_user = User(
         username=user_in.username,
         hashed_password=hashed_pw
     )
 
     #データベースに追加
-    db.add(newuser)
+    db.add(new_user)
     
     #編集を反映させる
     db.commit()
     
     #dbのデータでnewuserを更新する。
     #この場合はpythonのnewuserにidの情報をつける。
-    db.refresh(newuser)
+    db.refresh(new_user)
 
-    return newuser
+    return new_user
+
+#テスト用のユーザー確認
+@router.get("/all", response_model=list[UserRead])
+def get_all_users(db: Session = Depends(get_db)):
+    users = db.query(User).all()
+    return users
+
 

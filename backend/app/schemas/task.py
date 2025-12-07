@@ -16,6 +16,6 @@ class TaskCreate(TaskBase):
 #レスポンス用
 class TaskRead(TaskBase):
     id: int
-    ownerid: int
+    owner_id: int
     createdtime:datetime
 
