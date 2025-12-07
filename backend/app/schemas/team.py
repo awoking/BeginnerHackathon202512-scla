@@ -9,3 +9,7 @@ class TeamCreate(TeamBase):
     pass
 
 class TeamRead(TeamBase):
+    id: int
+    
+    class Config:
+        orm_mode=True
