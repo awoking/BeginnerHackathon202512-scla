@@ -4,13 +4,14 @@ from sqlalchemy.orm import Session
 #DB接続のための関数と型を呼び出す
 from app.database.session import get_db
 from app.models.user import User
-from app.schemas import UserCreate, UserRead
+from app.schemas.user import UserCreate, UserRead
+from app.core.security import hash_password
 
 
 #このファイル内のAPIは/usersから始める。
 #このファイル内のAPIには自動で/usersがつく。
 #タグをつけているのでSwagger UI（/docs）から確認可能。
-router = APIRouter(prefix="/users",tags={"users"})
+router = APIRouter(prefix="/users",tags=["users"])
 
 
 @router.post("/", response_model=UserRead)
@@ -21,10 +22,12 @@ def create_user(user_in: UserCreate, db: Session = Depends(get_db)):
     if existing:
         raise HTTPException(status_code=400,detail="ユーザー名はすでに使用されています")
     
+    hashed_pw = hash_password(user_in.password)
+
     #ユーザー作成。今はそのままだけどあとでpasswordをbcrypt化します。
     newuser = User(
         username=user_in.username,
-        passord=user_in.password
+        hashed_password=hashed_pw
     )
 
     #データベースに追加

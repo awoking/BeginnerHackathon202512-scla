@@ -26,14 +26,14 @@ def login(
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password"
+            detail="ユーゼー名またはパスワードが間違っています"
         )
 
     #パスワード検証
     if not verify_password(form_data.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password"
+            detail="ユーザー名またはパスワードが間違っています"
         )
 
     #JWT作成

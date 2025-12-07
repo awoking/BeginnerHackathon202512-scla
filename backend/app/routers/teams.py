@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.database.session import get_db
 from app.models.team import Team
-from app.models.menbership import Membership
+from app.models.membership import Membership
 from app.models.user import User
 from app.schemas.team import TeamCreate, TeamRead
 from app.core.auth import get_current_user

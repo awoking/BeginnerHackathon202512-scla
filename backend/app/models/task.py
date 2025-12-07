@@ -3,6 +3,8 @@ from sqlalchemy.orm import relationship
 from app.database.session import Base #sessionで定義した親クラスを参照している。
 
 class Task(Base):
+    __tablename__ = "tasks"
+
     id = Column(Integer, primary_key=True)
     title = Column(Integer,index=True)
     createdtime = Column(DateTime)
@@ -10,9 +12,9 @@ class Task(Base):
     deadline = Column(DateTime)
     
     #個人タスク
-    ownerid = Column(String, ForeignKey("users.id"), index=True, nullable=True)
+    owner_id = Column(String, ForeignKey("users.id"), index=True, nullable=True)
     #チームタスク
-    ownerid = Column(String,ForeignKey("teams.id"),index=True, nullable=True)
+    owner_id = Column(String,ForeignKey("teams.id"),index=True, nullable=True)
     #nullableはデータなしでも構わないということ。ForeignKeyはこの項目のデータが別のテーブルのidであることを保証している
     
     #リレーション（Python側の便利リンク）
@@ -23,7 +25,7 @@ class Task(Base):
 #中間テーブル
 reders = Table(
     "reders",
-    Base.metadate,
+    Base.metadata,
     Column("task_id", Integer, ForeignKey("tasks.id"),index=True),
     Column("userid", Integer, ForeignKey("user.id"),index=True),
 )
