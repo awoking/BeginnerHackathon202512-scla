@@ -22,10 +22,10 @@ def create_user(user_in: UserCreate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400,detail="ユーザー名はすでに使用されています")
     
     #ユーザー作成。今はそのままだけどあとでpasswordをbcrypt化します。
-    newuser = User{
+    newuser = User(
         username=user_in.username,
         passord=user_in.password
-    }
+    )
 
     #データベースに追加
     db.add(newuser)

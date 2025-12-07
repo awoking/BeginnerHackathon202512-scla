@@ -1,7 +1,8 @@
 from typing import Union
 
 from fastapi import FastAPI
-from routers import auth, tasks, users, images #認証はauth,タスク管理はtask,ユーザー管理はuser,ファイルアップロードはimagesに記述する。
+from backend.app.core import auth
+from routers import tasks, users, images #認証はauth,タスク管理はtask,ユーザー管理はuser,ファイルアップロードはimagesに記述する。
 
 app = FastAPI()
 
