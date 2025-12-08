@@ -1,35 +1,23 @@
-from sqlalchemy import Column, Integer, String, DateTime,Text,Table, ForeignKey
+from sqlalchemy import Column, Integer, String, DateTime, Text, ForeignKey
 from sqlalchemy.orm import relationship
-from app.database.session import Base #sessionで定義した親クラスを参照している。
+from datetime import datetime
+from app.database.session import Base
 
 class Task(Base):
     __tablename__ = "tasks"
 
-    id = Column(Integer, primary_key=True)
-    title = Column(Integer,index=True)
-    createdtime = Column(DateTime)
-    description = Column(Text)
-    deadline = Column(DateTime)
-    
-    #個人タスク
-    owner_id = Column(String, ForeignKey("users.id"), index=True, nullable=True)
-    #チームタスク
-    owner_id = Column(String,ForeignKey("teams.id"),index=True, nullable=True)
-    #nullableはデータなしでも構わないということ。ForeignKeyはこの項目のデータが別のテーブルのidであることを保証している
-    
-    #リレーション（Python側の便利リンク）
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String, nullable=False)
+    description = Column(Text, nullable=True)
+    deadline = Column(DateTime, nullable=True)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    # 個人タスク
+    owner_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+
+    # チームタスク
+    team_id = Column(Integer, ForeignKey("teams.id"), nullable=True)
+
     owner = relationship("User", back_populates="tasks")
     team = relationship("Team", back_populates="tasks")
-
-
-#中間テーブル
-readers = Table(
-    "readers",
-    Base.metadata,
-    Column("task_id", Integer, ForeignKey("tasks.id"), index=True),
-    Column("user_id", Integer, ForeignKey("users.id"), index=True),  # ← 正しい参照名
-)
-
-
-
-

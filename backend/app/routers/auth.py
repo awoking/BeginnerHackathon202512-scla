@@ -21,24 +21,23 @@ def login(
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db)
 ):
-    #ユーザー名で検索
+    # ユーザー名で検索
     user = db.query(User).filter(User.username == form_data.username).first()
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="ユーゼー名またはパスワードが間違っています"
+            detail="ユーザー名またはパスワードが間違っています"
         )
 
-    #パスワード検証
+    # パスワード検証
     if not verify_password(form_data.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="ユーザー名またはパスワードが間違っています"
         )
 
-    #JWT作成
+    # JWT 作成
     payload = {"sub": str(user.id)}
     token = jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
     return Token(access_token=token)
-
