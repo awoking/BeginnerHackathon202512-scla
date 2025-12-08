@@ -9,7 +9,7 @@ engine = create_engine(
 
 #sessionを作る
 SessionLocal = sessionmaker(
-    autocomit=False,
+    autocommit=False,
     autoflush=False,
     bind=engine
     )
