@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, String, DateTime, Text, ForeignKey
 from sqlalchemy.orm import relationship
-from datetime import datetime
+from datetime import datetime, timezone
 from app.database.session import Base
 
 class Task(Base):
@@ -11,7 +11,8 @@ class Task(Base):
     description = Column(Text, nullable=True)
     deadline = Column(DateTime, nullable=True)
 
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     # 個人タスク
     owner_id = Column(Integer, ForeignKey("users.id"), nullable=True)
