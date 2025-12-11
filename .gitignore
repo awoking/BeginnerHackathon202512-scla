@@ -1,5 +1,9 @@
 .DS_Store
 .venv
+__pycache__/
+*.pyc 
+# すべての.pycファイルと__pycache__フォルダを無視する。
+
 backend/app/core/__pycache__/auth.cpython-313.pyc
 backend/app/models/__pycache__/task.cpython-313.pyc
 backend/app/core/__pycache__/auth.cpython-313.pyc
