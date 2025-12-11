@@ -1,0 +1,26 @@
+services:
+  # 1. FastAPI (バックエンド) サービス
+  backend:
+    build: ./backend                 # ./backend/Dockerfile を使用してビルド
+    ports:
+      - "8000:8000"                  # ホストの 8000 番ポートにマッピング
+    volumes:
+      # ソースコードのホットリロードマウント
+      - ./backend:/app
+      # SQLiteファイル（app.dbなど）の永続化マウント
+      - ./backend/data:/app/data
+      # FastAPIの開発サーバーを起動し、コード変更時に自動リロードする
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # 2. React (フロントエンド) サービス
+  frontend:
+    build: ./frontend                # ./frontend/Dockerfile を使用してビルド
+    ports:
+      - "5173:5173"                  # ホストの 5173 番ポートにマッピング
+    volumes:
+      # ソースコードのホットリロードマウント
+      - ./frontend:/app
+      # node_modulesをホストからマウント対象から除外（コンテナ内で依存関係を管理するため）
+      - /app/node_modules
+    # React開発サーバーを起動
+    command: npm run dev
