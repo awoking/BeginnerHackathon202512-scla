@@ -1,15 +1,17 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
+import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import "./index.css";
-import App from "./App.tsx";
-import { createBrowserRouter, RouterProvider } from "react-router";
-import { LoginPage } from "./LoginPage.tsx";
-import { RegisterPage } from "./RegisterPage.tsx";
-import { LogoutPage } from "./LogoutPage.tsx";
-import { ProtectedRoute } from "./components/ProtectedRoute.tsx";
-import { DashboardLayout } from "./components/DashboardLayout.tsx";
 
-const routes = [
+import App from "./App.tsx";
+import { DashboardLayout } from "./components/DashboardLayout.tsx";
+import { ProtectedRoute } from "./components/ProtectedRoute.tsx";
+import { LoginPage } from "./LoginPage.tsx";
+import { LogoutPage } from "./LogoutPage.tsx";
+import { RegisterPage } from "./RegisterPage.tsx";
+import { TasksPage } from "./TasksPage.tsx";
+
+const router = createBrowserRouter([
   {
     path: "/login",
     element: <LoginPage />,
@@ -32,12 +34,24 @@ const routes = [
       </ProtectedRoute>
     ),
   },
-];
+  {
+    path: "/tasks",
+    element: (
+      <ProtectedRoute>
+        <DashboardLayout>
+          <TasksPage />
+        </DashboardLayout>
+      </ProtectedRoute>
+    ),
+  },
+]);
 
-const router = createBrowserRouter(routes);
+const rootEl = document.getElementById("root");
 
-createRoot(document.getElementById("root")!).render(
-  <StrictMode>
-    <RouterProvider router={router} />
-  </StrictMode>
-);
+if (rootEl) {
+  createRoot(rootEl).render(
+    <StrictMode>
+      <RouterProvider router={router} />
+    </StrictMode>
+  );
+}
