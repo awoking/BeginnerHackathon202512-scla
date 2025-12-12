@@ -4,12 +4,17 @@ import "./index.css";
 import App from "./App.tsx";
 import { createBrowserRouter, RouterProvider } from "react-router";
 import { LoginPage } from "./LoginPage.tsx";
+import { RegisterPage } from "./RegisterPage.tsx";
 import { ProtectedRoute } from "./components/ProtectedRoute.tsx";
 
 const routes = [
   {
     path: "/login",
     element: <LoginPage />,
+  },
+  {
+    path: "/register",
+    element: <RegisterPage />,
   },
   {
     path: "/",
