@@ -33,8 +33,25 @@ def can_view_task(db: Session, user: User, task: Task) -> bool:
 
 
 def can_modify_task(db: Session, user: User, task: Task) -> bool:
-    """変更許可: 作成者 or プロジェクトADMIN。担当者は将来条件次第で許可予定。"""
+    """変更許可（ステータス変更以外の操作）:
+    - プロジェクトタスク: メンバーかつ（作成者 or ADMIN or 担当者）。
+      要件: VIEWERはステータス変更のみ許可。編集は不可。
+    - 非プロジェクトタスク: 作成者のみ。
+    """
     if task.created_by == user.id:
         return True
     role = user_project_role(db, user.id, task.project_id)
-    return role == ROLE_ADMIN
+    return task.created_by == user.id or role == ROLE_ADMIN or task.assignee_id == user.id
+
+def can_change_status(db: Session, user: User, task: Task) -> bool:
+    """ステータス変更許可:
+    - プロジェクトタスク: メンバーかつ（ADMIN or VIEWER or 作成者 or 担当者）。
+      要件: VIEWERはステータス変更のみ可。
+    - 非プロジェクトタスク: 作成者 or 担当者。
+    """
+    role = user_project_role(db, user.id, task.project_id)
+    if task.project_id is not None:
+        if role is None:
+            return False
+        return role in (ROLE_ADMIN, ROLE_VIEWER) or task.created_by == user.id or task.assignee_id == user.id
+    return task.created_by == user.id or task.assignee_id == user.id

@@ -3,8 +3,8 @@ from typing import Union
 from fastapi import FastAPI
 from app.core import auth
 from app.database.session import engine, Base
-from app.models import user, task, team, membership, project, project_member
-from app.routers import tasks, users, auth, teams, projects
+from app.models import user, task, project, project_member
+from app.routers import tasks, users, auth, projects
 from fastapi.middleware.cors import CORSMiddleware
 #認証はauth,タスク管理はtask,ユーザー管理はuser,ファイルアップロードはimagesに記述する。images ,
 
@@ -37,5 +37,6 @@ app.include_router(auth.router)
 app.include_router(tasks.router)
 app.include_router(users.router)
 #app.include_router(images)
-app.include_router(teams.router)
+# teams機能はプロジェクトへ移行のため退役
+# app.include_router(teams.router)
 app.include_router(projects.router)

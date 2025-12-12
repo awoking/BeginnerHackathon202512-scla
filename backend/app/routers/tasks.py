@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.core.auth import get_current_user
-from app.core.permissions import can_view_task, can_modify_task
+from app.core.permissions import can_view_task, can_modify_task, can_change_status
 from app.database.session import get_db
 from app.models.task import Task
 from app.models.user import User
@@ -20,6 +20,13 @@ def create_task(
     current_user: User = Depends(get_current_user),
 ):
     # 新モデルに合わせて作成者・任意の関連を設定
+    # プロジェクトタスクはメンバーのみ作成可能（将来ロール別許可に拡張予定）
+    if task_in.project_id is not None:
+        from app.core.permissions import user_project_role
+        role = user_project_role(db, current_user.id, task_in.project_id)
+        if role is None:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="プロジェクトメンバーのみ作成可能です")
+
     task = Task(
         title=task_in.title,
         description=task_in.description,
@@ -152,6 +159,51 @@ def list_project_roots(
     return visible
 
 
+@router.get("/projects/{project_id}", response_model=list[TaskRead])
+def list_project_tasks(
+    project_id: int,
+    status: str | None = None,
+    assignee_id: int | None = None,
+    priority: int | None = None,
+    parent_id: int | None = None,
+    search: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """プロジェクト内のタスク一覧。
+    - メンバーのみ閲覧可。VIEWER/ADMIN/所有者を想定。
+    - 未来拡張: 合計件数 total を返すレスポンス型に変更予定。
+    """
+    from app.core.permissions import user_project_role, ROLE_ADMIN, ROLE_VIEWER
+    role = user_project_role(db, current_user.id, project_id)
+    # 所有者も許可（Project.owner_idチェックは簡易化のため省略。projects.get で担保想定）
+    if role is None:
+        raise HTTPException(status_code=403, detail="プロジェクトメンバーのみ閲覧可能です")
+
+    q = db.query(Task).filter(Task.project_id == project_id)
+    if parent_id is not None:
+        q = q.filter(Task.parent_id == parent_id)
+    if status is not None:
+        q = q.filter(Task.status == status)
+    if assignee_id is not None:
+        q = q.filter(Task.assignee_id == assignee_id)
+    if priority is not None:
+        q = q.filter(Task.priority == priority)
+    if search:
+        # 簡易検索（タイトル・説明の部分一致）。後で全文検索に拡張予定。
+        like = f"%{search}%"
+        q = q.filter((Task.title.ilike(like)) | (Task.description.ilike(like)))
+
+    q = q.order_by(Task.updated_at.desc())
+    items = q.offset(offset).limit(limit).all()
+
+    # 念のため各タスクに対して閲覧権限チェック（ロールの差分対応用）
+    visible = [t for t in items if can_view_task(db, current_user, t)]
+    return visible
+
+
 from app.schemas.task import TaskStatusUpdate, TaskAssigneeUpdate, TaskPriorityUpdate
 
 
@@ -165,8 +217,9 @@ def update_status(
     task = db.query(Task).filter(Task.id == task_id).first()
     if not task:
         raise HTTPException(status_code=404, detail="タスクが見つかりません")
-    if not can_modify_task(db, current_user, task):
-        raise HTTPException(status_code=403, detail="権限がありません")
+    # ステータスは VIEWER も変更可（要メンバー）。担当者・作成者・ADMINも可。
+    if not can_change_status(db, current_user, task):
+        raise HTTPException(status_code=403, detail="権限がありません（ステータス変更）")
     old = task.status
     task.status = payload.status
     task.updated_by = current_user.id
