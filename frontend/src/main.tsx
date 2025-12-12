@@ -10,6 +10,7 @@ import { LoginPage } from "./LoginPage.tsx";
 import { LogoutPage } from "./LogoutPage.tsx";
 import { RegisterPage } from "./RegisterPage.tsx";
 import { TasksPage } from "./TasksPage.tsx";
+import { ProjectsPage } from "./ProjectsPage.tsx";
 
 const router = createBrowserRouter([
   {
@@ -30,6 +31,26 @@ const router = createBrowserRouter([
       <ProtectedRoute>
         <DashboardLayout>
           <App />
+        </DashboardLayout>
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/projects",
+    element: (
+      <ProtectedRoute>
+        <DashboardLayout>
+          <ProjectsPage />
+        </DashboardLayout>
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/projects/:projectId",
+    element: (
+      <ProtectedRoute>
+        <DashboardLayout>
+          <TasksPage />
         </DashboardLayout>
       </ProtectedRoute>
     ),
