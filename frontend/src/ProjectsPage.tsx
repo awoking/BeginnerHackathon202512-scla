@@ -175,29 +175,6 @@ export function ProjectsPage() {
               <p className="text-sm text-gray-500 mb-4">
                 作成日: {formatDate(project.created_at)}
               </p>
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="flex-1"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    navigate(`/projects/${project.id}`);
-                  }}
-                >
-                  詳細を見る
-                </Button>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    navigate(`/projects/${project.id}/members`);
-                  }}
-                >
-                  <Users className="h-4 w-4" />
-                </Button>
-              </div>
             </Card>
           ))}
         </div>

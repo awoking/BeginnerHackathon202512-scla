@@ -38,7 +38,7 @@ export function TasksPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [statusFilter, setStatusFilter] = useState<string | "">("");
+  const [statusFilter, setStatusFilter] = useState<string | "">("all");
 
   const [newTask, setNewTask] = useState<TaskCreate>({
     title: "",
@@ -55,24 +55,22 @@ export function TasksPage() {
       const token = getToken();
       if (!token) throw new Error("認証トークンがありません");
 
-      if (projectId) {
-        // プロジェクト指定の場合、そのプロジェクト内のタスクを取得
-        const projData = await ProjectApi.getProject(token, parseInt(projectId, 10));
-        setProject(projData);
-
-        const filters: any = { limit: 100, offset: 0 };
-        if (statusFilter) filters.status = statusFilter;
-        const tasksData = await TaskApi.getProjectTasks(
-          token,
-          parseInt(projectId, 10),
-          filters
-        );
-        setTasks(tasksData);
-      } else {
-        // プロジェクト未指定の場合、自分のタスクを取得
-        const tasksData = await TaskApi.getMyTasks(token);
-        setTasks(tasksData);
+      if (!projectId) {
+        throw new Error("プロジェクトIDが必要です");
       }
+
+      // プロジェクト内のタスクを取得
+      const projData = await ProjectApi.getProject(token, parseInt(projectId, 10));
+      setProject(projData);
+
+      const filters: any = { limit: 100, offset: 0 };
+      if (statusFilter && statusFilter !== "all") filters.status = statusFilter;
+      const tasksData = await TaskApi.getProjectTasks(
+        token,
+        parseInt(projectId, 10),
+        filters
+      );
+      setTasks(tasksData);
     } catch (err) {
       setError(err instanceof Error ? err.message : ERROR_MESSAGES.GENERIC_ERROR);
     } finally {
@@ -92,13 +90,17 @@ export function TasksPage() {
       const token = getToken();
       if (!token) throw new Error("認証トークンがありません");
 
+      if (!projectId) {
+        throw new Error("プロジェクトIDが必要です");
+      }
+
       const taskData: TaskCreate = {
         title: newTask.title,
         description: newTask.description || undefined,
         deadline: newTask.deadline || undefined,
         status: newTask.status || "not_started",
         priority: newTask.priority || 0,
-        project_id: projectId ? parseInt(projectId, 10) : undefined,
+        project_id: parseInt(projectId, 10),
       };
 
       await TaskApi.createTask(token, taskData);
@@ -274,7 +276,7 @@ export function TasksPage() {
               <SelectValue placeholder="すべて" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">すべて</SelectItem>
+              <SelectItem value="all">すべて</SelectItem>
               <SelectItem value="not_started">未開始</SelectItem>
               <SelectItem value="in_progress">進行中</SelectItem>
               <SelectItem value="completed">完了</SelectItem>

@@ -13,7 +13,7 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
-import { Home, ListTodo, FolderOpen, LogOut } from "lucide-react";
+import { Home, FolderOpen, LogOut } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 
@@ -22,11 +22,6 @@ const menuItems = [
     title: "ダッシュボード",
     url: "/",
     icon: Home,
-  },
-  {
-    title: "マイタスク",
-    url: "/tasks",
-    icon: ListTodo,
   },
   {
     title: "プロジェクト",

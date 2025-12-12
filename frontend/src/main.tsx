@@ -11,6 +11,7 @@ import { LogoutPage } from "./LogoutPage.tsx";
 import { RegisterPage } from "./RegisterPage.tsx";
 import { TasksPage } from "./TasksPage.tsx";
 import { ProjectsPage } from "./ProjectsPage.tsx";
+import { ProjectDetailPage } from "./ProjectDetailPage.tsx";
 
 const router = createBrowserRouter([
   {
@@ -50,17 +51,7 @@ const router = createBrowserRouter([
     element: (
       <ProtectedRoute>
         <DashboardLayout>
-          <TasksPage />
-        </DashboardLayout>
-      </ProtectedRoute>
-    ),
-  },
-  {
-    path: "/tasks",
-    element: (
-      <ProtectedRoute>
-        <DashboardLayout>
-          <TasksPage />
+          <ProjectDetailPage />
         </DashboardLayout>
       </ProtectedRoute>
     ),

@@ -5,7 +5,7 @@ export interface Task {
   title: string;
   description?: string;
   deadline?: string;
-  project_id?: number;
+  project_id: number; // 必須: すべてのタスクはプロジェクト配下
   parent_id?: number;
   status: string; // "not_started" | "in_progress" | "completed"
   priority: number;
@@ -20,7 +20,7 @@ export interface TaskCreate {
   title: string;
   description?: string;
   deadline?: string;
-  project_id?: number;
+  project_id: number; // 必須: すべてのタスクはプロジェクト配下
   parent_id?: number;
   status?: string;
   priority?: number;
@@ -40,22 +40,6 @@ export interface TaskPriorityUpdate {
 }
 
 export class TaskApi {
-  // 自分が作成・担当しているタスクを取得
-  static async getMyTasks(token: string): Promise<Task[]> {
-    const response = await fetch(`${API_BASE_URL}/tasks/`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.detail || "タスクの取得に失敗しました");
-    }
-
-    return response.json();
-  }
-
   // プロジェクト内のすべてのタスクを取得（フィルター対応）
   static async getProjectTasks(
     token: string,
