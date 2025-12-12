@@ -19,13 +19,11 @@ def create_task(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    # 新モデルに合わせて作成者・任意の関連を設定
-    # プロジェクトタスクはメンバーのみ作成可能（将来ロール別許可に拡張予定）
-    if task_in.project_id is not None:
-        from app.core.permissions import user_project_role
-        role = user_project_role(db, current_user.id, task_in.project_id)
-        if role is None:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="プロジェクトメンバーのみ作成可能です")
+    # すべてのタスクはプロジェクト配下。メンバーのみ作成可能。
+    from app.core.permissions import user_project_role
+    role = user_project_role(db, current_user.id, task_in.project_id)
+    if role is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="プロジェクトメンバーのみタスク作成可能です")
 
     task = Task(
         title=task_in.title,
@@ -55,20 +53,6 @@ def create_task(
     db.commit()
 
     return task
-
-
-@router.get("/", response_model=list[TaskRead])
-def get_my_tasks(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    # 自分が作成した、または担当のタスクを取得
-    tasks = (
-        db.query(Task)
-        .filter((Task.created_by == current_user.id) | (Task.assignee_id == current_user.id))
-        .all()
-    )
-    return tasks
 
 
 @router.get("/{task_id}", response_model=TaskRead)

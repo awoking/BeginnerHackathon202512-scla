@@ -9,8 +9,9 @@ class TaskBase(BaseModel):
     # 期限（ISO8601, UTC推奨）。後でTZ対応に改良予定。
     deadline: Optional[datetime] = None
 
-    # 階層構造・プロジェクト紐付け（任意）
-    project_id: Optional[int] = None
+    # プロジェクト紐付け（必須：すべてのタスクはプロジェクト配下）
+    project_id: int
+    # 階層構造（親参照）。NULLなら親タスク。
     parent_id: Optional[int] = None
 
     # 初期ステータス/優先度
@@ -25,6 +26,7 @@ class TaskCreate(TaskBase):
 
 class TaskRead(TaskBase):
     id: int
+    project_id: int
     created_by: int
     updated_by: Optional[int] = None
     created_at: datetime

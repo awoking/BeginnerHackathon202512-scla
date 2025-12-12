@@ -9,8 +9,8 @@ class Task(Base):
 
     id = Column(Integer, primary_key=True, index=True)
 
-    # プロジェクト紐付け（NULL許容：旧データ移行のため）
-    project_id = Column(Integer, ForeignKey("projects.id"), nullable=True)
+    # プロジェクト紐付け（必須：すべてのタスクはプロジェクト配下）
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
 
     # 階層構造（親参照）。NULLなら親タスク。
     parent_id = Column(Integer, ForeignKey("tasks.id"), nullable=True)
