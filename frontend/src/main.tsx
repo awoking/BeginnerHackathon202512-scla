@@ -5,7 +5,9 @@ import App from "./App.tsx";
 import { createBrowserRouter, RouterProvider } from "react-router";
 import { LoginPage } from "./LoginPage.tsx";
 import { RegisterPage } from "./RegisterPage.tsx";
+import { LogoutPage } from "./LogoutPage.tsx";
 import { ProtectedRoute } from "./components/ProtectedRoute.tsx";
+import { DashboardLayout } from "./components/DashboardLayout.tsx";
 
 const routes = [
   {
@@ -17,10 +19,16 @@ const routes = [
     element: <RegisterPage />,
   },
   {
+    path: "/logout",
+    element: <LogoutPage />,
+  },
+  {
     path: "/",
     element: (
       <ProtectedRoute>
-        <App />
+        <DashboardLayout>
+          <App />
+        </DashboardLayout>
       </ProtectedRoute>
     ),
   },

@@ -34,7 +34,7 @@ def read_root():
 
 #ファイルを読み込む。
 app.include_router(auth.router)
-#app.include_router(tasks.router)
+app.include_router(tasks.router)
 app.include_router(users.router)
 #app.include_router(images)
 app.include_router(teams.router)
