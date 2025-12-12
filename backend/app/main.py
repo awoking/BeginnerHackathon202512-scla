@@ -16,7 +16,9 @@ app = FastAPI()
 
 origins = [
     # 開発時にReactが動くポート (Viteのデフォルトは5173)
-    "http://localhost:5173", 
+    "http://localhost:5173",
+    # Docker環境でのアクセス
+    "http://frontend:5173",
 ]
 
 app.add_middleware(

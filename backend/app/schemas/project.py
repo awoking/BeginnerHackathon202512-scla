@@ -11,7 +11,7 @@ class ProjectCreate(ProjectBase):
 
 class ProjectRead(ProjectBase):
     id: int
-    owner_id: int
+    creator_id: int
     created_at: datetime
     updated_at: Optional[datetime] = None
 
@@ -19,16 +19,20 @@ class ProjectRead(ProjectBase):
         from_attributes = True
 
 class ProjectMemberBase(BaseModel):
-    user_id: int
     role: str  # ADMIN / VIEWER（後でEnumに変更予定）
 
-class ProjectMemberCreate(ProjectMemberBase):
-    pass
+class ProjectMemberCreate(BaseModel):
+    username: str  # ユーザー名で招待
+    role: str  # ADMIN / VIEWER
+
+class ProjectMemberUpdate(BaseModel):
+    role: str  # ADMIN / VIEWER
 
 class ProjectMemberRead(ProjectMemberBase):
     id: int
     project_id: int
-    created_at: datetime
+    user_id: int
+    invited_at: datetime
 
     class Config:
         from_attributes = True

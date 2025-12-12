@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Plus, Users } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { ProjectApi } from "@/services/ProjectApi";
@@ -28,6 +29,7 @@ export function ProjectsPage() {
 
   const [newProject, setNewProject] = useState<ProjectCreate>({
     name: "",
+    description: "",
   });
 
   const loadProjects = async () => {
@@ -60,9 +62,10 @@ export function ProjectsPage() {
 
       const created = await ProjectApi.createProject(token, {
         name: newProject.name,
+        description: newProject.description || undefined,
       });
 
-      setNewProject({ name: "" });
+      setNewProject({ name: "", description: "" });
       setIsDialogOpen(false);
       setProjects([...projects, created]);
     } catch (err) {
@@ -109,6 +112,18 @@ export function ProjectsPage() {
                   required
                 />
               </div>
+              <div>
+                <Label htmlFor="projectDescription">説明</Label>
+                <Textarea
+                  id="projectDescription"
+                  value={newProject.description}
+                  onChange={(e) =>
+                    setNewProject({ ...newProject, description: e.target.value })
+                  }
+                  placeholder="プロジェクトの説明を入力（任意）"
+                  rows={3}
+                />
+              </div>
               {error && (
                 <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded text-sm">
                   {error}
@@ -152,6 +167,11 @@ export function ProjectsPage() {
               <div className="flex justify-between items-start mb-3">
                 <h3 className="text-lg font-semibold flex-1">{project.name}</h3>
               </div>
+              {project.description && (
+                <p className="text-sm text-gray-600 mb-3 line-clamp-2">
+                  {project.description}
+                </p>
+              )}
               <p className="text-sm text-gray-500 mb-4">
                 作成日: {formatDate(project.created_at)}
               </p>

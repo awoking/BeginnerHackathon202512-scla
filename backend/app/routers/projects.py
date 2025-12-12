@@ -9,7 +9,7 @@ from app.models.project_member import ProjectMember
 from app.core.permissions import ROLE_ADMIN, ROLE_VIEWER, user_project_role
 from app.schemas.project import (
     ProjectCreate, ProjectRead,
-    ProjectMemberCreate, ProjectMemberRead,
+    ProjectMemberCreate, ProjectMemberUpdate, ProjectMemberRead,
 )
 
 router = APIRouter(prefix="/projects", tags=["projects"])
@@ -22,7 +22,7 @@ def create_project(
     current_user: User = Depends(get_current_user),
 ):
     # プロジェクト作成。作成者をOWNER/ADMIN相当としてメンバーに登録。
-    project = Project(name=payload.name, description=payload.description, owner_id=current_user.id)
+    project = Project(name=payload.name, description=payload.description, creator_id=current_user.id)
     db.add(project)
     db.commit()
     db.refresh(project)
@@ -41,7 +41,7 @@ def list_my_projects(
     current_user: User = Depends(get_current_user),
 ):
     # 自分が所有 or メンバーのプロジェクト一覧
-    owned = db.query(Project).filter(Project.owner_id == current_user.id)
+    owned = db.query(Project).filter(Project.creator_id == current_user.id)
     joined_ids = [pm.project_id for pm in db.query(ProjectMember).filter(ProjectMember.user_id == current_user.id).all()]
     joined = db.query(Project).filter(Project.id.in_(joined_ids)) if joined_ids else []
     results = list(owned.all()) + (list(joined) if isinstance(joined, list) else list(joined.all()))
@@ -61,12 +61,12 @@ def get_project(
         raise HTTPException(status_code=404, detail="プロジェクトが見つかりません")
     role = user_project_role(db, current_user.id, project.id)
     # 閲覧は VIEWER 以上許可（JOIN 済み想定）。所有者も可。
-    if not (project.owner_id == current_user.id or role in (ROLE_ADMIN, ROLE_VIEWER)):
+    if not (project.creator_id == current_user.id or role in (ROLE_ADMIN, ROLE_VIEWER)):
         raise HTTPException(status_code=403, detail="閲覧権限がありません")
     return project
 
 
-@router.post("/{project_id}/members", response_model=ProjectMemberRead)
+@router.post("/{project_id}/members/invite", response_model=ProjectMemberRead)
 def invite_member(
     project_id: int,
     payload: ProjectMemberCreate,
@@ -76,21 +76,32 @@ def invite_member(
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
         raise HTTPException(status_code=404, detail="プロジェクトが見つかりません")
+    
     role = user_project_role(db, current_user.id, project.id)
     # 招待は ADMIN のみ許可。所有者は ADMIN 相当。
-    if not (project.owner_id == current_user.id or role == ROLE_ADMIN):
+    if not (project.creator_id == current_user.id or role == ROLE_ADMIN):
         raise HTTPException(status_code=403, detail="招待権限がありません")
+
+    # ユーザー名でユーザーを検索
+    from app.models.user import User
+    target_user = db.query(User).filter(User.username == payload.username).first()
+    if not target_user:
+        raise HTTPException(status_code=404, detail="ユーザーが見つかりません")
 
     # 既存メンバー重複チェック
     exists = (
         db.query(ProjectMember)
-        .filter(ProjectMember.project_id == project_id, ProjectMember.user_id == payload.user_id)
+        .filter(ProjectMember.project_id == project_id, ProjectMember.user_id == target_user.id)
         .first()
     )
     if exists:
         raise HTTPException(status_code=400, detail="既にメンバーです")
 
-    member = ProjectMember(project_id=project_id, user_id=payload.user_id, role=payload.role)
+    # ロール値検証
+    if payload.role not in (ROLE_ADMIN, ROLE_VIEWER):
+        raise HTTPException(status_code=400, detail="無効なロールです")
+
+    member = ProjectMember(project_id=project_id, user_id=target_user.id, role=payload.role)
     db.add(member)
     db.commit()
     db.refresh(member)
@@ -107,7 +118,7 @@ def list_members(
     if not project:
         raise HTTPException(status_code=404, detail="プロジェクトが見つかりません")
     role = user_project_role(db, current_user.id, project.id)
-    if not (project.owner_id == current_user.id or role in (ROLE_ADMIN, ROLE_VIEWER)):
+    if not (project.creator_id == current_user.id or role in (ROLE_ADMIN, ROLE_VIEWER)):
         raise HTTPException(status_code=403, detail="閲覧権限がありません")
     return db.query(ProjectMember).filter(ProjectMember.project_id == project_id).all()
 
@@ -116,7 +127,7 @@ def list_members(
 def change_member_role(
     project_id: int,
     member_id: int,
-    new_role: str,
+    payload: ProjectMemberUpdate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -124,15 +135,18 @@ def change_member_role(
     if not project:
         raise HTTPException(status_code=404, detail="プロジェクトが見つかりません")
     role = user_project_role(db, current_user.id, project.id)
-    if not (project.owner_id == current_user.id or role == ROLE_ADMIN):
+    if not (project.creator_id == current_user.id or role == ROLE_ADMIN):
         raise HTTPException(status_code=403, detail="権限がありません")
 
     member = db.query(ProjectMember).filter(ProjectMember.id == member_id, ProjectMember.project_id == project_id).first()
     if not member:
         raise HTTPException(status_code=404, detail="メンバーが見つかりません")
 
-    # 値検証は将来 Enum 化で厳密化予定
-    member.role = new_role
+    # ロール値検証（将来 Enum 化で厳密化予定）
+    if payload.role not in (ROLE_ADMIN, ROLE_VIEWER):
+        raise HTTPException(status_code=400, detail="無効なロールです")
+    
+    member.role = payload.role
     db.add(member)
     db.commit()
     db.refresh(member)

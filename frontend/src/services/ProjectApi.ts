@@ -3,6 +3,7 @@ import { API_BASE_URL } from "@/config/constants";
 export interface Project {
   id: number;
   name: string;
+  description?: string;
   creator_id: number;
   created_at: string;
   updated_at: string;
@@ -18,6 +19,7 @@ export interface ProjectMember {
 
 export interface ProjectCreate {
   name: string;
+  description?: string;
 }
 
 export interface ProjectMemberInvite {
