@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Sidebar,
@@ -13,9 +14,10 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
-import { Home, ListTodo, Users, LogOut } from "lucide-react";
+import { Home, FolderOpen, LogOut } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
+import { ProjectApi, type Project } from "@/services/ProjectApi";
 
 const menuItems = [
   {
@@ -24,14 +26,9 @@ const menuItems = [
     icon: Home,
   },
   {
-    title: "タスク",
-    url: "/tasks",
-    icon: ListTodo,
-  },
-  {
-    title: "チーム",
-    url: "/teams",
-    icon: Users,
+    title: "プロジェクト",
+    url: "/projects",
+    icon: FolderOpen,
   },
 ];
 
@@ -41,12 +38,31 @@ interface DashboardLayoutProps {
 
 export function DashboardLayout({ children }: DashboardLayoutProps) {
   const navigate = useNavigate();
-  const { logout } = useAuth();
+  const { logout, getToken } = useAuth();
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [loadingProjects, setLoadingProjects] = useState(false);
 
   const handleLogout = () => {
     logout();
     navigate("/login");
   };
+
+  useEffect(() => {
+    const loadProjects = async () => {
+      setLoadingProjects(true);
+      try {
+        const token = getToken();
+        if (!token) return;
+        const data = await ProjectApi.getMyProjects(token);
+        setProjects(data);
+      } catch {
+        // サイドバーなので静かに失敗しても無視
+      } finally {
+        setLoadingProjects(false);
+      }
+    };
+    loadProjects();
+  }, [getToken]);
 
   return (
     <SidebarProvider>
@@ -66,6 +82,40 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                         <a href={item.url}>
                           <item.icon />
                           <span>{item.title}</span>
+                        </a>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+
+            <SidebarGroup>
+              <SidebarGroupLabel>プロジェクト</SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {loadingProjects && (
+                    <SidebarMenuItem>
+                      <SidebarMenuButton asChild>
+                        <div className="text-sm text-gray-500">読み込み中...</div>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  )}
+                  {!loadingProjects && projects.length === 0 && (
+                    <SidebarMenuItem>
+                      <SidebarMenuButton asChild>
+                        <div className="text-sm text-gray-500">参加中のプロジェクトなし</div>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  )}
+                  {projects.map((project) => (
+                    <SidebarMenuItem key={project.id}>
+                      <SidebarMenuButton asChild>
+                        <a href={`/projects/${project.id}`}>
+                          <FolderOpen className="h-4 w-4" />
+                          <span>
+                            {project.creator_username} / {project.name}
+                          </span>
                         </a>
                       </SidebarMenuButton>
                     </SidebarMenuItem>

@@ -1,14 +1,8 @@
-from sqlalchemy import Column, Integer, String
-from sqlalchemy.orm import relationship
-from app.database.session import Base
+"""
+Deprecated: Team model
 
-class Team(Base):
-    __tablename__ = "teams"
-
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, nullable=False)
-    
-    #双方向の紐付け
-    tasks = relationship("Task", back_populates="team")
-    memberships = relationship("Membership", back_populates="team")
+このモデルはプロジェクト機能へ移行のため退役しました。DBテーブル削除や
+移行が必要な場合は Alembic などで対応してください。
+既存コードからの参照が残っている場合は、プロジェクト機能へ置換してください。
+"""
 

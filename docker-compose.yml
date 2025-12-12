@@ -17,6 +17,9 @@ services:
     build: ./frontend                # ./frontend/Dockerfile を使用してビルド
     ports:
       - "5173:5173"                  # ホストの 5173 番ポートにマッピング
+    environment:
+      # ホストのブラウザからアクセスする場合は localhost を使用
+      VITE_API_BASE_URL: http://localhost:8000
     volumes:
       # ソースコードのホットリロードマウント
       - ./frontend:/app
@@ -25,3 +28,5 @@ services:
     # React開発サーバーを起動
     # ボリュームマウントでnode_modulesが空になるため、起動時に依存関係を再インストール
     command: sh -c "npm install && npm run dev"
+    depends_on:
+      - backend
