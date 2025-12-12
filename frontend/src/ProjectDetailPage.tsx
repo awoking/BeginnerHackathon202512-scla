@@ -35,6 +35,8 @@ import type { Project, ProjectMember } from "@/services/ProjectApi";
 import type { Task, TaskCreate } from "@/services/TaskApi";
 import { useAuth } from "@/hooks/useAuth";
 import { ERROR_MESSAGES } from "@/config/constants";
+import { ProgressBar } from "@/components/ui/progress-bar";
+import { isOverdue, getTaskBackgroundClass } from "@/lib/task-utils";
 
 type TabType = "tasks" | "members" | "settings";
 
@@ -72,12 +74,14 @@ export function ProjectDetailPage() {
   // フィルター用
   const [statusFilter, setStatusFilter] = useState<string>("active");
   const [showCompleted, setShowCompleted] = useState(false);
+  const [showOverdue, setShowOverdue] = useState(true);
   const [expandedMap, setExpandedMap] = useState<Record<number, boolean>>({});
   // ダッシュボード同様のビュー
   const [taskView, setTaskView] = useState<"timeline" | "calendar" | "hierarchy">("hierarchy");
   const [sortKey, setSortKey] = useState<"updated" | "deadline">("updated");
   const [leafTaskIds, setLeafTaskIds] = useState<Set<number>>(new Set());
   const [calendarDate, setCalendarDate] = useState(new Date());
+  const [leafProgress, setLeafProgress] = useState<{ completed: number; total: number }>({ completed: 0, total: 0 });
 
   // プロジェクト編集用
   const [isProjectEditOpen, setIsProjectEditOpen] = useState(false);
@@ -153,17 +157,28 @@ export function ProjectDetailPage() {
       setTasks(data);
       // 葉タスク判定
       const leaves: Set<number> = new Set();
+      let leafCompleted = 0;
+      let leafTotal = 0;
       for (const t of data) {
         try {
           const children = await TaskApi.getChildren(token, t.id);
           if (!children || children.length === 0) {
             leaves.add(t.id);
+            leafTotal++;
+            if (t.status === "completed") {
+              leafCompleted++;
+            }
           }
         } catch {
           leaves.add(t.id);
+          leafTotal++;
+          if (t.status === "completed") {
+            leafCompleted++;
+          }
         }
       }
       setLeafTaskIds(leaves);
+      setLeafProgress({ completed: leafCompleted, total: leafTotal });
     } catch (err) {
       setError(err instanceof Error ? err.message : ERROR_MESSAGES.GENERIC_ERROR);
     }
@@ -239,6 +254,18 @@ export function ProjectDetailPage() {
       if (!token) throw new Error("認証トークンがありません");
       if (!projectId) throw new Error("プロジェクトIDがありません");
 
+      // 子タスクの場合、親タスクの期限チェック
+      if (parentTaskId && newTask.deadline) {
+        const parentTask = tasks.find((t) => t.id === parentTaskId);
+        if (parentTask && parentTask.deadline) {
+          const childDeadline = new Date(newTask.deadline);
+          const parentDeadline = new Date(parentTask.deadline);
+          if (childDeadline > parentDeadline) {
+            throw new Error("子タスクの期限は親タスクの期限以前に設定してください。");
+          }
+        }
+      }
+
       const taskData: TaskCreate = {
         ...newTask,
         project_id: parseInt(projectId, 10),
@@ -283,6 +310,21 @@ export function ProjectDetailPage() {
     try {
       const token = getToken();
       if (!token) throw new Error("認証トークンがありません");
+
+      // 親タスクを完了にしようとする場合、すべての子タスクが完了しているか確認
+      if (newStatus === "completed") {
+        const currentTask = tasks.find((t) => t.id === taskId);
+        if (currentTask) {
+          const children = tasks.filter((t) => t.parent_id === taskId);
+          if (children.length > 0) {
+            const allChildrenCompleted = children.every((c) => c.status === "completed");
+            if (!allChildrenCompleted) {
+              setError("子タスクをすべて完了させてから、親タスクを完了にしてください。");
+              return;
+            }
+          }
+        }
+      }
 
       await TaskApi.updateStatus(token, taskId, newStatus);
       loadTasks();
@@ -482,13 +524,29 @@ export function ProjectDetailPage() {
         </Button>
 
         <div className="border-b pb-4">
-          <h1 className="text-3xl font-bold mb-2">{project.name}</h1>
-          {project.description && (
-            <p className="text-gray-600 text-lg">{project.description}</p>
-          )}
-          <p className="text-sm text-gray-500 mt-2">
-            作成日: {formatDate(project.created_at)}
-          </p>
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex-1 min-w-0">
+              <h1 className="text-3xl font-bold mb-2">{project.name}</h1>
+              {project.description && (
+                <p className="text-gray-600 text-lg">{project.description}</p>
+              )}
+              <p className="text-sm text-gray-500 mt-2">
+                作成日: {formatDate(project.created_at)}
+              </p>
+            </div>
+            
+            {/* 進捗ゲージ */}
+            {leafProgress.total > 0 && (
+              <div className="flex-shrink-0">
+                <ProgressBar
+                  value={Math.round((leafProgress.completed / leafProgress.total) * 100)}
+                  label={`${leafProgress.completed}/${leafProgress.total} 完了`}
+                  showPercentage={true}
+                  className="w-40"
+                />
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -613,7 +671,24 @@ export function ProjectDetailPage() {
                       onChange={(e) =>
                         setNewTask({ ...newTask, deadline: e.target.value })
                       }
+                      max={
+                        parentTaskId
+                          ? (() => {
+                              const parent = tasks.find((t) => t.id === parentTaskId);
+                              if (parent?.deadline) {
+                                const d = new Date(parent.deadline);
+                                return d.toISOString().slice(0, 16);
+                              }
+                              return undefined;
+                            })()
+                          : undefined
+                      }
                     />
+                    {parentTaskId && tasks.find((t) => t.id === parentTaskId)?.deadline && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        親タスクの期限: {formatDate(tasks.find((t) => t.id === parentTaskId)?.deadline)}
+                      </p>
+                    )}
                   </div>
                   <div>
                     <div
@@ -706,23 +781,35 @@ export function ProjectDetailPage() {
                   />
                   完了も表示
                 </label>
+                <label className="text-sm text-gray-700 flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4"
+                    checked={showOverdue}
+                    onChange={(e) => setShowOverdue(e.target.checked)}
+                  />
+                  期限超過を非表示
+                </label>
               </div>
 
               <div className="space-y-2">
-                {tasks.filter((t) => showCompleted || t.status !== "completed").length === 0 ? (
+                {tasks.filter((t) => {
+                  if (!showCompleted && t.status === "completed") return false;
+                  if (!showOverdue && isOverdue(t)) return false;
+                  return true;
+                }).length === 0 ? (
                   <Card className="p-8 text-center text-gray-500">
                     タスクがありません。新規タスクを作成してください。
                   </Card>
                 ) : (
                   tasks
-                    .filter((t) => showCompleted || t.status !== "completed")
-                    .filter((task) => !task.parent_id)
+                    .filter((t) => !t.parent_id && (showCompleted || t.status !== "completed") && (showOverdue || !isOverdue(t)))
                     .map((task) => {
                       const childCount = tasks.filter((t) => t.parent_id === task.id).length;
                       return (
                         <div key={task.id}>
                           {/* 親タスク */}
-                          <Card className="p-3 bg-white">
+                          <Card className={`p-3 ${getTaskBackgroundClass(task)}`}>
                             <div className="flex items-start justify-between gap-2">
                               <div className="flex-1 flex items-start gap-2">
                                 <button
@@ -806,11 +893,11 @@ export function ProjectDetailPage() {
                           {/* 子タスク */}
                           {expandedMap[task.id] && tasks
                             .filter((subtask) => subtask.parent_id === task.id)
-                            .filter((t) => showCompleted || t.status !== "completed")
+                            .filter((t) => (showCompleted || t.status !== "completed") && (showOverdue || !isOverdue(t)))
                             .map((subtask) => {
                               const grandCount = tasks.filter((t) => t.parent_id === subtask.id).length;
                               return (
-                                <Card key={subtask.id} className="p-3 ml-6 mt-2 bg-gray-50 border-l-2 border-blue-300">
+                                <Card key={subtask.id} className={`p-3 ml-6 mt-2 border-l-2 border-blue-300 ${getTaskBackgroundClass(subtask)}`}>
                                   <div className="flex items-start justify-between gap-2">
                                     <div className="flex-1 flex items-start gap-2">
                                       <button
@@ -893,11 +980,11 @@ export function ProjectDetailPage() {
                                   {/* 孫タスク */}
                                   {expandedMap[subtask.id] && tasks
                                     .filter((grand) => grand.parent_id === subtask.id)
-                                    .filter((t) => showCompleted || t.status !== "completed")
+                                    .filter((t) => (showCompleted || t.status !== "completed") && (showOverdue || !isOverdue(t)))
                                     .map((grand) => (
                                       <Card
                                         key={grand.id}
-                                        className="p-3 ml-6 mt-2 bg-white border-l-2 border-green-300"
+                                        className={`p-3 ml-6 mt-2 border-l-2 border-green-300 ${getTaskBackgroundClass(grand)}`}
                                       >
                                         <div className="flex items-start justify-between gap-2">
                                           <div className="flex-1 min-w-0">
@@ -984,6 +1071,15 @@ export function ProjectDetailPage() {
                     onChange={(e) => setShowCompleted(e.target.checked)}
                   />
                   完了タスクも表示
+                </label>
+                <label className="text-sm text-gray-700 flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4"
+                    checked={showOverdue}
+                    onChange={(e) => setShowOverdue(e.target.checked)}
+                  />
+                  期限超過を非表示
                 </label>
               </div>
 
@@ -1078,6 +1174,15 @@ export function ProjectDetailPage() {
                     onChange={(e) => setShowCompleted(e.target.checked)}
                   />
                   完了も表示
+                </label>
+                <label className="text-sm text-gray-700 flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4"
+                    checked={showOverdue}
+                    onChange={(e) => setShowOverdue(e.target.checked)}
+                  />
+                  期限超過を非表示
                 </label>
               </div>
 

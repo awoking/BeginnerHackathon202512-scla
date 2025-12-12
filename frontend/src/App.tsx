@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { isOverdue, getTaskBackgroundClass } from "@/lib/task-utils";
 import { TaskApi, type Task } from "@/services/TaskApi";
 import { useAuth } from "@/hooks/useAuth";
 import { ERROR_MESSAGES } from "@/config/constants";
@@ -12,6 +13,7 @@ function App() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [showCompleted, setShowCompleted] = useState(false);
+  const [showOverdue, setShowOverdue] = useState(true);
   const [sortKey, setSortKey] = useState<"updated" | "deadline">("updated");
   const [activeView, setActiveView] = useState<"timeline" | "calendar">("timeline");
   const [calendarDate, setCalendarDate] = useState<Date>(new Date());
@@ -69,8 +71,12 @@ function App() {
     const filtered = showCompleted
       ? assignedLeaves
       : assignedLeaves.filter((t) => t.status !== "completed");
+    
+    const withoutOverdue = showOverdue
+      ? filtered
+      : filtered.filter((t) => !isOverdue(t));
 
-    const sorted = [...filtered].sort((a, b) => {
+    const sorted = [...withoutOverdue].sort((a, b) => {
       if (sortKey === "deadline") {
         const aTime = a.deadline ? new Date(a.deadline).getTime() : Infinity;
         const bTime = b.deadline ? new Date(b.deadline).getTime() : Infinity;
@@ -82,14 +88,18 @@ function App() {
     });
 
     return sorted;
-  }, [tasks, showCompleted, sortKey]);
+  }, [tasks, showCompleted, showOverdue, sortKey]);
 
   const calendarCells = useMemo(() => {
     const filtered = (showCompleted ? tasks : tasks.filter((t) => t.status !== "completed"))
       .filter((t) => t.deadline);
+    
+    const withoutOverdue = showOverdue
+      ? filtered
+      : filtered.filter((t) => !isOverdue(t));
 
     const taskMap = new Map<string, Task[]>();
-    filtered.forEach((t) => {
+    withoutOverdue.forEach((t) => {
       if (!t.deadline) return;
       const key = new Date(t.deadline).toISOString().slice(0, 10);
       const arr = taskMap.get(key) || [];
@@ -113,12 +123,28 @@ function App() {
       cells.push({ date, tasks: taskMap.get(key) || [] });
     }
     return cells;
-  }, [tasks, showCompleted, calendarDate]);
+  }, [tasks, showCompleted, showOverdue, calendarDate]);
 
   const changeStatus = async (taskId: number, newStatus: string) => {
     try {
       const token = getToken();
       if (!token) return;
+
+      // 親タスクを完了にしようとする場合、すべての子タスクが完了しているか確認
+      if (newStatus === "completed") {
+        const currentTask = tasks.find((t) => t.id === taskId);
+        if (currentTask) {
+          const children = await TaskApi.getChildren(token, taskId);
+          if (children && children.length > 0) {
+            const allChildrenCompleted = children.every((c) => c.status === "completed");
+            if (!allChildrenCompleted) {
+              setError("子タスクをすべて完了させてから、親タスクを完了にしてください。");
+              return;
+            }
+          }
+        }
+      }
+
       await TaskApi.updateStatus(token, taskId, newStatus);
       const data = await TaskApi.getMyAssignedTasks(token);
       // 再取得後に葉判定も再計算
@@ -142,44 +168,59 @@ function App() {
   };
 
   return (
-    <div>
-      <h1 className="text-3xl font-bold mb-4">ダッシュボード</h1>
-      <div className="flex items-center justify-between gap-4 mb-4 flex-wrap">
-        <div className="flex items-center gap-2">
-          <button
-            className={`px-3 py-1 rounded text-sm ${activeView === "timeline" ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-700"}`}
-            onClick={() => setActiveView("timeline")}
-          >
-            タイムライン
-          </button>
-          <button
-            className={`px-3 py-1 rounded text-sm ${activeView === "calendar" ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-700"}`}
-            onClick={() => setActiveView("calendar")}
-          >
-            カレンダー
-          </button>
+    <div className="container mx-auto max-w-6xl">
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold mb-4">ダッシュボード</h1>
+        
+        {/* フィルターと表示オプション */}
+        <div className="flex items-center gap-4 flex-wrap">
+          <div className="flex items-center gap-2 border-r pr-4">
+            <button
+              className={`px-3 py-1.5 rounded text-sm font-medium transition ${activeView === "timeline" ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}
+              onClick={() => setActiveView("timeline")}
+            >
+              タイムライン
+            </button>
+            <button
+              className={`px-3 py-1.5 rounded text-sm font-medium transition ${activeView === "calendar" ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}
+              onClick={() => setActiveView("calendar")}
+            >
+              カレンダー
+            </button>
+          </div>
+
+          {activeView === "timeline" && (
+            <select
+              value={sortKey}
+              onChange={(e) => setSortKey(e.target.value as "updated" | "deadline")}
+              className="border rounded px-2 py-1.5 text-sm bg-white"
+            >
+              <option value="updated">更新が新しい順</option>
+              <option value="deadline">期限が近い順</option>
+            </select>
+          )}
+
+          <div className="flex items-center gap-3 ml-auto">
+            <label className="text-sm text-gray-700 flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={showCompleted}
+                onChange={(e) => setShowCompleted(e.target.checked)}
+                className="h-4 w-4 rounded"
+              />
+              完了も表示
+            </label>
+            <label className="text-sm text-gray-700 flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={showOverdue}
+                onChange={(e) => setShowOverdue(e.target.checked)}
+                className="h-4 w-4 rounded"
+              />
+              期限超過を非表示
+            </label>
+          </div>
         </div>
-        <div className="flex items-center gap-3 text-sm text-gray-700">
-          <span className="text-gray-600">並び順:</span>
-          <select
-            value={sortKey}
-            onChange={(e) => setSortKey(e.target.value as "updated" | "deadline")}
-            className="border rounded px-2 py-1 text-sm"
-            disabled={activeView !== "timeline"}
-          >
-            <option value="updated">更新が新しい順</option>
-            <option value="deadline">期限が近い順</option>
-          </select>
-        </div>
-        <label className="text-sm text-gray-700 flex items-center gap-2">
-          <input
-            type="checkbox"
-            checked={showCompleted}
-            onChange={(e) => setShowCompleted(e.target.checked)}
-            className="h-4 w-4"
-          />
-          完了タスクも表示
-        </label>
       </div>
 
       {error && (
@@ -188,38 +229,36 @@ function App() {
         </div>
       )}
 
-      <p className="text-gray-600 mb-4">自分が担当のタスク一覧</p>
-
       {loading ? (
         <p className="text-gray-500">読み込み中...</p>
       ) : activeView === "calendar" ? (
         // カレンダー表示
         <div>
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <h2 className="text-lg font-semibold">カレンダー</h2>
-              <span className="text-sm text-gray-500">
-                {calendarDate.toLocaleDateString("ja-JP", { year: "numeric", month: "long" })}
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold">
+              {calendarDate.toLocaleDateString("ja-JP", { year: "numeric", month: "long" })}
+            </h2>
+            <div className="flex items-center gap-1">
               <button
-                className="px-2 py-1 border rounded text-sm"
+                className="px-2 py-1 border rounded text-xs hover:bg-gray-50"
                 onClick={() => setCalendarDate(new Date(calendarDate.getFullYear(), calendarDate.getMonth() - 1, 1))}
+                title="前月"
               >
-                前月
+                ◀
               </button>
               <button
-                className="px-2 py-1 border rounded text-sm"
+                className="px-2 py-1 border rounded text-xs hover:bg-gray-50"
                 onClick={() => setCalendarDate(new Date())}
+                title="今月"
               >
-                今月
+                今
               </button>
               <button
-                className="px-2 py-1 border rounded text-sm"
+                className="px-2 py-1 border rounded text-xs hover:bg-gray-50"
                 onClick={() => setCalendarDate(new Date(calendarDate.getFullYear(), calendarDate.getMonth() + 1, 1))}
+                title="次月"
               >
-                次月
+                ▶
               </button>
             </div>
           </div>
@@ -248,7 +287,13 @@ function App() {
                     cell.tasks.slice(0, 3).map((t) => (
                       <div
                         key={t.id}
-                        className="text-[11px] truncate px-1 py-0.5 rounded bg-blue-50 text-blue-800 border border-blue-100"
+                        className={`text-[11px] truncate px-1 py-0.5 rounded border ${
+                          t.status === "completed"
+                            ? "bg-blue-50 text-blue-800 border-blue-100"
+                            : isOverdue(t)
+                            ? "bg-red-50 text-red-800 border-red-100"
+                            : "bg-blue-50 text-blue-800 border-blue-100"
+                        }`}
                         title={`${t.title} (${t.project_name || "プロジェクト"})`}
                       >
                         {t.title}
@@ -292,7 +337,7 @@ function App() {
                 </div>
                 <div className="space-y-3">
                   {group.items.map((task) => (
-                    <Card key={task.id} className="p-4 space-y-2">
+                    <Card key={task.id} className={`p-4 space-y-2 ${getTaskBackgroundClass(task)}`}>
                       <div className="flex justify-between items-start gap-2">
                         <div>
                           <h3 className="font-semibold text-lg leading-snug">{task.title}</h3>

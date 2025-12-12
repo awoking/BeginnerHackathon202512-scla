@@ -12,15 +12,18 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Users } from "lucide-react";
+import { Plus, Users, Zap, Calendar } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { ProjectApi } from "@/services/ProjectApi";
 import type { Project, ProjectCreate } from "@/services/ProjectApi";
 import { useAuth } from "@/hooks/useAuth";
 import { ERROR_MESSAGES } from "@/config/constants";
+import { TaskApi } from "@/services/TaskApi";
+import { ProgressBar } from "@/components/ui/progress-bar";
 
 export function ProjectsPage() {
   const [projects, setProjects] = useState<Project[]>([]);
+  const [projectStats, setProjectStats] = useState<Record<number, { taskCount: number; members: number; leafCompleted: number; leafTotal: number }>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -41,6 +44,47 @@ export function ProjectsPage() {
 
       const data = await ProjectApi.getMyProjects(token);
       setProjects(data);
+
+      // プロジェクトごとのタスク数とメンバー数を取得
+      const stats: Record<number, { taskCount: number; members: number; leafCompleted: number; leafTotal: number }> = {};
+      for (const project of data) {
+        try {
+          const tasks = await TaskApi.getProjectTasks(token, project.id, {});
+          const members = await ProjectApi.getMembers(token, project.id);
+
+          // 葉タスク（子を持たないタスク）を計算
+          let leafCompleted = 0;
+          let leafTotal = 0;
+          for (const task of tasks) {
+            try {
+              const children = await TaskApi.getChildren(token, task.id);
+              if (!children || children.length === 0) {
+                // 葉タスク
+                leafTotal++;
+                if (task.status === "completed") {
+                  leafCompleted++;
+                }
+              }
+            } catch {
+              // エラー時も葉タスクとして数える（安全側）
+              leafTotal++;
+              if (task.status === "completed") {
+                leafCompleted++;
+              }
+            }
+          }
+
+          stats[project.id] = {
+            taskCount: tasks.length,
+            members: members.length,
+            leafCompleted,
+            leafTotal,
+          };
+        } catch {
+          stats[project.id] = { taskCount: 0, members: 0, leafCompleted: 0, leafTotal: 0 };
+        }
+      }
+      setProjectStats(stats);
     } catch (err) {
       setError(err instanceof Error ? err.message : ERROR_MESSAGES.GENERIC_ERROR);
     } finally {
@@ -153,30 +197,67 @@ export function ProjectsPage() {
       {isLoading ? (
         <p className="text-gray-500">読み込み中...</p>
       ) : projects.length === 0 ? (
-        <p className="text-gray-500">
-          プロジェクトがありません。新しいプロジェクトを作成してください。
-        </p>
+        <Card className="p-8 text-center text-gray-500">
+          <p>プロジェクトがありません。新しいプロジェクトを作成してください。</p>
+        </Card>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {projects.map((project) => (
-            <Card
-              key={project.id}
-              className="p-4 cursor-pointer hover:shadow-lg transition-shadow"
-              onClick={() => navigate(`/projects/${project.id}`)}
-            >
-              <div className="flex justify-between items-start mb-3">
-                <h3 className="text-lg font-semibold flex-1">{project.name}</h3>
-              </div>
-              {project.description && (
-                <p className="text-sm text-gray-600 mb-3 line-clamp-2">
-                  {project.description}
-                </p>
-              )}
-              <p className="text-sm text-gray-500 mb-4">
-                作成日: {formatDate(project.created_at)}
-              </p>
-            </Card>
-          ))}
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {projects.map((project) => {
+            const stats = projectStats[project.id] || { taskCount: 0, members: 0 };
+            return (
+              <Card
+                key={project.id}
+                className="p-4 cursor-pointer hover:shadow-xl hover:border-blue-300 transition-all duration-200 border group flex flex-col"
+                onClick={() => navigate(`/projects/${project.id}`)}
+              >
+                {/* ヘッダー */}
+                <div className="mb-3">
+                  <h3 className="font-semibold text-base line-clamp-2 group-hover:text-blue-600 transition-colors">
+                    {project.name}
+                  </h3>
+                  <p className="text-xs text-gray-400 mt-1">
+                    作成者: {project.creator_username || "不明"}
+                  </p>
+                </div>
+
+                {/* 説明 */}
+                {project.description && (
+                  <p className="text-xs text-gray-600 mb-3 line-clamp-2 flex-grow">
+                    {project.description}
+                  </p>
+                )}
+
+                {/* 統計情報 */}
+                <div className="flex gap-3 text-xs text-gray-500 mb-3 pb-3 border-t pt-3">
+                  <div className="flex items-center gap-1">
+                    <Zap className="h-3 w-3 text-orange-500" />
+                    <span>{stats.taskCount} タスク</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Users className="h-3 w-3 text-blue-500" />
+                    <span>{stats.members} メンバー</span>
+                  </div>
+                </div>
+
+                {/* 進捗ゲージ */}
+                {stats.leafTotal > 0 && (
+                  <div className="mb-3">
+                    <ProgressBar
+                      value={Math.round((stats.leafCompleted / stats.leafTotal) * 100)}
+                      label={`完了: ${stats.leafCompleted}/${stats.leafTotal}`}
+                      showPercentage={true}
+                    />
+                  </div>
+                )}
+
+                {/* 作成日 */}
+                <div className="flex items-center gap-1 text-xs text-gray-400">
+                  <Calendar className="h-3 w-3" />
+                  <span>{formatDate(project.created_at)}</span>
+                </div>
+              </Card>
+            );
+          })}
         </div>
       )}
     </div>
