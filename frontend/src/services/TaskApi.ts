@@ -10,6 +10,8 @@ export interface Task {
   status: string; // "not_started" | "in_progress" | "completed"
   priority: number;
   assignee_id?: number;
+  project_name?: string;
+  project_creator_username?: string;
   created_by: number;
   updated_by?: number;
   created_at: string;
@@ -75,6 +77,38 @@ export class TaskApi {
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
       throw new Error(errorData.detail || "タスクの取得に失敗しました");
+    }
+
+    return response.json();
+  }
+
+  // 子タスク取得
+  static async getChildren(token: string, taskId: number): Promise<Task[]> {
+    const response = await fetch(`${API_BASE_URL}/tasks/${taskId}/children`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.detail || "子タスクの取得に失敗しました");
+    }
+
+    return response.json();
+  }
+
+  // 自分が担当のタスク一覧（プロジェクト情報付き）
+  static async getMyAssignedTasks(token: string): Promise<Task[]> {
+    const response = await fetch(`${API_BASE_URL}/tasks/assigned/me`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.detail || "担当タスクの取得に失敗しました");
     }
 
     return response.json();

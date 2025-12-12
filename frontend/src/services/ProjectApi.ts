@@ -5,6 +5,7 @@ export interface Project {
   name: string;
   description?: string;
   creator_id: number;
+  creator_username: string;
   created_at: string;
   updated_at: string;
 }

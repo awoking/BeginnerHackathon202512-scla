@@ -16,6 +16,18 @@ from app.schemas.project import (
 router = APIRouter(prefix="/projects", tags=["projects"])
 
 
+def project_to_read(project: Project):
+    return {
+        "id": project.id,
+        "name": project.name,
+        "description": project.description,
+        "creator_id": project.creator_id,
+        "creator_username": project.creator.username if project.creator else "Unknown",
+        "created_at": project.created_at,
+        "updated_at": project.updated_at,
+    }
+
+
 @router.post("/", response_model=ProjectRead)
 def create_project(
     payload: ProjectCreate,
@@ -33,7 +45,8 @@ def create_project(
     db.add(member)
     db.commit()
 
-    return project
+    db.refresh(project)
+    return project_to_read(project)
 
 
 @router.patch("/{project_id}", response_model=ProjectRead)
@@ -59,7 +72,7 @@ def update_project(
     db.add(project)
     db.commit()
     db.refresh(project)
-    return project
+    return project_to_read(project)
 
 
 @router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -93,7 +106,7 @@ def list_my_projects(
     results = list(owned.all()) + (list(joined) if isinstance(joined, list) else list(joined.all()))
     # 重複排除
     uniq = {p.id: p for p in results}
-    return list(uniq.values())
+    return [project_to_read(p) for p in uniq.values()]
 
 
 @router.get("/{project_id}", response_model=ProjectRead)
@@ -109,7 +122,7 @@ def get_project(
     # 閲覧は VIEWER 以上許可（JOIN 済み想定）。所有者も可。
     if not (project.creator_id == current_user.id or role in (ROLE_ADMIN, ROLE_VIEWER)):
         raise HTTPException(status_code=403, detail="閲覧権限がありません")
-    return project
+    return project_to_read(project)
 
 
 @router.post("/{project_id}/members/invite", response_model=ProjectMemberRead)

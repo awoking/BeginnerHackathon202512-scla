@@ -16,6 +16,7 @@ class ProjectUpdate(BaseModel):
 class ProjectRead(ProjectBase):
     id: int
     creator_id: int
+    creator_username: str
     created_at: datetime
     updated_at: Optional[datetime] = None
 

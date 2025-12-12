@@ -70,7 +70,14 @@ export function ProjectDetailPage() {
   const [inviteRole, setInviteRole] = useState<"ADMIN" | "VIEWER">("VIEWER");
 
   // フィルター用
-  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string>("active");
+  const [showCompleted, setShowCompleted] = useState(false);
+  const [expandedMap, setExpandedMap] = useState<Record<number, boolean>>({});
+  // ダッシュボード同様のビュー
+  const [taskView, setTaskView] = useState<"timeline" | "calendar" | "hierarchy">("hierarchy");
+  const [sortKey, setSortKey] = useState<"updated" | "deadline">("updated");
+  const [leafTaskIds, setLeafTaskIds] = useState<Set<number>>(new Set());
+  const [calendarDate, setCalendarDate] = useState(new Date());
 
   // プロジェクト編集用
   const [isProjectEditOpen, setIsProjectEditOpen] = useState(false);
@@ -134,7 +141,9 @@ export function ProjectDetailPage() {
       if (!token || !projectId) return;
 
       const filters: any = { limit: 100, offset: 0 };
-      if (statusFilter && statusFilter !== "all") filters.status = statusFilter;
+      if (statusFilter && statusFilter !== "all" && statusFilter !== "active") {
+        filters.status = statusFilter;
+      }
 
       const data = await TaskApi.getProjectTasks(
         token,
@@ -142,6 +151,19 @@ export function ProjectDetailPage() {
         filters
       );
       setTasks(data);
+      // 葉タスク判定
+      const leaves: Set<number> = new Set();
+      for (const t of data) {
+        try {
+          const children = await TaskApi.getChildren(token, t.id);
+          if (!children || children.length === 0) {
+            leaves.add(t.id);
+          }
+        } catch {
+          leaves.add(t.id);
+        }
+      }
+      setLeafTaskIds(leaves);
     } catch (err) {
       setError(err instanceof Error ? err.message : ERROR_MESSAGES.GENERIC_ERROR);
     }
@@ -279,6 +301,12 @@ export function ProjectDetailPage() {
     setIsTaskDialogOpen(true);
   };
 
+  const getAssigneeName = (assigneeId?: number) => {
+    if (!assigneeId) return "未設定";
+    const found = members.find((m) => m.user_id === assigneeId);
+    return found ? found.username : "不明なユーザー";
+  };
+
   const handleInviteMember = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
@@ -358,6 +386,52 @@ export function ProjectDetailPage() {
       month: "long",
       day: "numeric",
     });
+  };
+
+  const getDateKey = (dateString?: string): string => {
+    if (!dateString) return "期限なし";
+    const date = new Date(dateString);
+    return date.toISOString().split("T")[0];
+  };
+
+  const timelineGrouped = () => {
+    const assignedLeaves = tasks.filter((t) => leafTaskIds.has(t.id));
+    const filtered = showCompleted
+      ? assignedLeaves
+      : assignedLeaves.filter((t) => t.status !== "completed");
+    const grouped: Record<string, Task[]> = {};
+    const dateKeyFn = sortKey === "deadline"
+      ? (t: Task) => getDateKey(t.deadline)
+      : (t: Task) => getDateKey(t.updated_at || t.created_at);
+    filtered.forEach((t) => {
+      const key = dateKeyFn(t);
+      if (!grouped[key]) grouped[key] = [];
+      grouped[key].push(t);
+    });
+    return Object.entries(grouped)
+      .sort(([a], [b]) => (sortKey === "deadline" ? a.localeCompare(b) : b.localeCompare(a)))
+      .map(([date, tks]) => ({ date, tasks: tks }));
+  };
+
+  const calendarTasks = () => {
+    const year = calendarDate.getFullYear();
+    const month = calendarDate.getMonth();
+    const assignedLeaves = tasks.filter((t) => leafTaskIds.has(t.id));
+    const filtered = showCompleted
+      ? assignedLeaves
+      : assignedLeaves.filter((t) => t.status !== "completed");
+    const tasksByDate: Record<number, Task[]> = {};
+    filtered.forEach((t) => {
+      if (t.deadline) {
+        const d = new Date(t.deadline);
+        if (d.getFullYear() === year && d.getMonth() === month) {
+          const day = d.getDate();
+          if (!tasksByDate[day]) tasksByDate[day] = [];
+          tasksByDate[day].push(t);
+        }
+      }
+    });
+    return tasksByDate;
   };
 
   const getStatusLabel = (status: string) => {
@@ -449,7 +523,9 @@ export function ProjectDetailPage() {
               activeTab === "settings"
                 ? "border-blue-500 text-blue-600"
                 : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-            }`}
+            } ${!isAdmin ? "opacity-50 cursor-not-allowed" : ""}`}
+            disabled={!isAdmin}
+            title={!isAdmin ? "ADMINのみアクセス可能" : undefined}
           >
             <Settings className="inline-block mr-2 h-4 w-4" />
             設定
@@ -466,19 +542,27 @@ export function ProjectDetailPage() {
       {/* タスクタブ */}
       {activeTab === "tasks" && (
         <div>
-          <div className="flex justify-between items-center mb-4">
-            <div className="flex items-center gap-4">
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="ステータスで絞込" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">すべて</SelectItem>
-                  <SelectItem value="not_started">未着手</SelectItem>
-                  <SelectItem value="in_progress">進行中</SelectItem>
-                  <SelectItem value="completed">完了</SelectItem>
-                </SelectContent>
-              </Select>
+          {/* ビュー切り替え */}
+          <div className="mb-6 flex justify-between items-center">
+            <div className="flex gap-2">
+              <Button
+                variant={taskView === "hierarchy" ? "default" : "outline"}
+                onClick={() => setTaskView("hierarchy")}
+              >
+                階層表示
+              </Button>
+              <Button
+                variant={taskView === "timeline" ? "default" : "outline"}
+                onClick={() => setTaskView("timeline")}
+              >
+                タイムライン
+              </Button>
+              <Button
+                variant={taskView === "calendar" ? "default" : "outline"}
+                onClick={() => setTaskView("calendar")}
+              >
+                カレンダー
+              </Button>
             </div>
 
             <Dialog open={isTaskDialogOpen} onOpenChange={setIsTaskDialogOpen}>
@@ -597,100 +681,81 @@ export function ProjectDetailPage() {
             </Dialog>
           </div>
 
-          <div className="space-y-2">
-            {tasks.length === 0 ? (
-              <Card className="p-8 text-center text-gray-500">
-                タスクがありません。新規タスクを作成してください。
-              </Card>
-            ) : (
-              tasks
-                .filter((task) => !task.parent_id) // 親タスクのみ表示
-                .map((task) => (
-                  <div key={task.id}>
-                    <Card className="p-4">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <h3 className="font-semibold text-lg mb-2">{task.title}</h3>
-                          {task.description && (
-                            <p className="text-gray-600 mb-2">{task.description}</p>
-                          )}
-                          <div className="flex items-center gap-4 text-sm flex-wrap">
-                            <Select
-                              value={task.status}
-                              onValueChange={(value) =>
-                                handleStatusChange(task.id, value)
-                              }
-                            >
-                              <SelectTrigger className="w-[140px]">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="not_started">未着手</SelectItem>
-                                <SelectItem value="in_progress">進行中</SelectItem>
-                                <SelectItem value="completed">完了</SelectItem>
-                              </SelectContent>
-                            </Select>
-                            <span className="text-gray-500">
-                              優先度: {task.priority || "なし"}
-                            </span>
-                            <span className="text-gray-500">
-                              期限: {formatDate(task.deadline)}
-                            </span>
-                          </div>
-                          <div className="mt-3 flex gap-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleCreateSubtask(task.id)}
-                            >
-                              <Plus className="mr-1 h-3 w-3" />
-                              子タスク作成
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                setEditingTask(task);
-                                setIsTaskEditOpen(true);
-                              }}
-                            >
-                              編集
-                            </Button>
-                          </div>
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDeleteTask(task.id)}
-                        >
-                          <Trash2 className="h-4 w-4 text-red-500" />
-                        </Button>
-                      </div>
-                    </Card>
-                    
-                    {/* 子タスク */}
-                    {tasks
-                      .filter((subtask) => subtask.parent_id === task.id)
-                      .map((subtask) => (
-                        <Card key={subtask.id} className="p-4 ml-8 mt-2 bg-gray-50">
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1">
-                              <h4 className="font-medium text-base mb-2">
-                                📁 {subtask.title}
-                              </h4>
-                              {subtask.description && (
-                                <p className="text-gray-600 text-sm mb-2">
-                                  {subtask.description}
-                                </p>
-                              )}
-                              <div className="flex items-center gap-4 text-sm flex-wrap">
-                                <Select
-                                  value={subtask.status}
-                                  onValueChange={(value) =>
-                                    handleStatusChange(subtask.id, value)
+          {/* 階層表示（デフォルト） */}
+          {taskView === "hierarchy" && (
+            <div>
+              <div className="mb-4 flex items-center gap-4 flex-wrap">
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="ステータスで絞込" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="active">進行中/未着手</SelectItem>
+                    <SelectItem value="all">すべて</SelectItem>
+                    <SelectItem value="not_started">未着手</SelectItem>
+                    <SelectItem value="in_progress">進行中</SelectItem>
+                    <SelectItem value="completed">完了</SelectItem>
+                  </SelectContent>
+                </Select>
+                <label className="text-sm text-gray-700 flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4"
+                    checked={showCompleted}
+                    onChange={(e) => setShowCompleted(e.target.checked)}
+                  />
+                  完了も表示
+                </label>
+              </div>
+
+              <div className="space-y-2">
+                {tasks.filter((t) => showCompleted || t.status !== "completed").length === 0 ? (
+                  <Card className="p-8 text-center text-gray-500">
+                    タスクがありません。新規タスクを作成してください。
+                  </Card>
+                ) : (
+                  tasks
+                    .filter((t) => showCompleted || t.status !== "completed")
+                    .filter((task) => !task.parent_id)
+                    .map((task) => {
+                      const childCount = tasks.filter((t) => t.parent_id === task.id).length;
+                      return (
+                        <div key={task.id}>
+                          {/* 親タスク */}
+                          <Card className="p-3 bg-white">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex-1 flex items-start gap-2">
+                                <button
+                                  className="mt-1 text-gray-600 hover:text-gray-900 flex-shrink-0"
+                                  onClick={() =>
+                                    setExpandedMap({
+                                      ...expandedMap,
+                                      [task.id]: !expandedMap[task.id],
+                                    })
                                   }
                                 >
-                                  <SelectTrigger className="w-[140px]">
+                                  {childCount > 0 ? (expandedMap[task.id] ? "▼" : "▶") : ""}
+                                </button>
+                                <div className="flex-1 min-w-0">
+                                  <h3 className="font-semibold">{task.title}</h3>
+                                  {task.description && (
+                                    <p className="text-xs text-gray-600 truncate">{task.description}</p>
+                                  )}
+                                  <div className="text-xs text-gray-500 mt-1 flex gap-2 flex-wrap">
+                                    <span>期限: {formatDate(task.deadline)}</span>
+                                    <span>優先度: {task.priority || "なし"}</span>
+                                    <span>担当: {getAssigneeName(task.assignee_id)}</span>
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-1 flex-shrink-0">
+                                <Select
+                                  value={task.status}
+                                  onValueChange={(value) =>
+                                    handleStatusChange(task.id, value)
+                                  }
+                                >
+                                  <SelectTrigger className="w-[100px] h-8 text-xs">
                                     <SelectValue />
                                   </SelectTrigger>
                                   <SelectContent>
@@ -699,66 +764,86 @@ export function ProjectDetailPage() {
                                     <SelectItem value="completed">完了</SelectItem>
                                   </SelectContent>
                                 </Select>
-                                <span className="text-gray-500">
-                                  優先度: {subtask.priority || "なし"}
-                                </span>
-                                <span className="text-gray-500">
-                                  期限: {formatDate(subtask.deadline)}
-                                </span>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-8 w-8 p-0"
+                                  onClick={() => handleCreateSubtask(task.id)}
+                                  title="子タスク作成"
+                                >
+                                  <Plus className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-8 w-8 p-0"
+                                  onClick={() => {
+                                    setEditingTask(task);
+                                    setIsTaskEditOpen(true);
+                                  }}
+                                  title="編集"
+                                >
+                                  編集
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-8 w-8 p-0"
+                                  onClick={() => handleDeleteTask(task.id)}
+                                  title="削除"
+                                >
+                                  <Trash2 className="h-4 w-4 text-red-500" />
+                                </Button>
                               </div>
                             </div>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleDeleteTask(subtask.id)}
-                            >
-                              <Trash2 className="h-4 w-4 text-red-500" />
-                            </Button>
-                          </div>
-                          <div className="mt-3 flex gap-2 flex-wrap">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                setEditingTask(subtask);
-                                setIsTaskEditOpen(true);
-                              }}
-                            >
-                              編集
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleCreateSubtask(subtask.id)}
-                            >
-                              子タスク作成
-                            </Button>
-                          </div>
+                            {childCount > 0 && !expandedMap[task.id] && (
+                              <div className="text-xs text-gray-400 ml-5 mt-1">
+                                子タスク {childCount}件
+                              </div>
+                            )}
+                          </Card>
 
-                          {/* 孫タスク */}
-                          {tasks
-                            .filter((grand) => grand.parent_id === subtask.id)
-                            .map((grand) => (
-                              <Card
-                                key={grand.id}
-                                className="p-4 ml-8 mt-2 bg-white border border-gray-200"
-                              >
-                                <div className="flex items-start justify-between">
-                                  <div className="flex-1">
-                                    <h5 className="font-medium text-sm mb-2">🗂 {grand.title}</h5>
-                                    {grand.description && (
-                                      <p className="text-gray-600 text-sm mb-2">
-                                        {grand.description}
-                                      </p>
-                                    )}
-                                    <div className="flex items-center gap-4 text-sm flex-wrap">
-                                      <Select
-                                        value={grand.status}
-                                        onValueChange={(value) =>
-                                          handleStatusChange(grand.id, value)
+                          {/* 子タスク */}
+                          {expandedMap[task.id] && tasks
+                            .filter((subtask) => subtask.parent_id === task.id)
+                            .filter((t) => showCompleted || t.status !== "completed")
+                            .map((subtask) => {
+                              const grandCount = tasks.filter((t) => t.parent_id === subtask.id).length;
+                              return (
+                                <Card key={subtask.id} className="p-3 ml-6 mt-2 bg-gray-50 border-l-2 border-blue-300">
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div className="flex-1 flex items-start gap-2">
+                                      <button
+                                        className="mt-1 text-gray-500 hover:text-gray-700 flex-shrink-0"
+                                        onClick={() =>
+                                          setExpandedMap({
+                                            ...expandedMap,
+                                            [subtask.id]: !expandedMap[subtask.id],
+                                          })
                                         }
                                       >
-                                        <SelectTrigger className="w-[140px]">
+                                        {grandCount > 0 ? (expandedMap[subtask.id] ? "▼" : "▶") : ""}
+                                      </button>
+                                      <div className="flex-1 min-w-0">
+                                        <h4 className="font-medium text-sm">{subtask.title}</h4>
+                                        {subtask.description && (
+                                          <p className="text-xs text-gray-600 truncate">{subtask.description}</p>
+                                        )}
+                                        <div className="text-xs text-gray-500 mt-1 flex gap-2 flex-wrap">
+                                          <span>期限: {formatDate(subtask.deadline)}</span>
+                                          <span>優先度: {subtask.priority || "なし"}</span>
+                                          <span>担当: {getAssigneeName(subtask.assignee_id)}</span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-1 flex-shrink-0">
+                                      <Select
+                                        value={subtask.status}
+                                        onValueChange={(value) =>
+                                          handleStatusChange(subtask.id, value)
+                                        }
+                                      >
+                                        <SelectTrigger className="w-[100px] h-8 text-xs">
                                           <SelectValue />
                                         </SelectTrigger>
                                         <SelectContent>
@@ -767,159 +852,272 @@ export function ProjectDetailPage() {
                                           <SelectItem value="completed">完了</SelectItem>
                                         </SelectContent>
                                       </Select>
-                                      <span className="text-gray-500">
-                                        優先度: {grand.priority || "なし"}
-                                      </span>
-                                      <span className="text-gray-500">
-                                        期限: {formatDate(grand.deadline)}
-                                      </span>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-8 w-8 p-0"
+                                        onClick={() => handleCreateSubtask(subtask.id)}
+                                        title="子タスク作成"
+                                      >
+                                        <Plus className="h-4 w-4" />
+                                      </Button>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-8 w-8 p-0"
+                                        onClick={() => {
+                                          setEditingTask(subtask);
+                                          setIsTaskEditOpen(true);
+                                        }}
+                                        title="編集"
+                                      >
+                                        編集
+                                      </Button>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-8 w-8 p-0"
+                                        onClick={() => handleDeleteTask(subtask.id)}
+                                        title="削除"
+                                      >
+                                        <Trash2 className="h-4 w-4 text-red-500" />
+                                      </Button>
                                     </div>
                                   </div>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => handleDeleteTask(grand.id)}
-                                  >
-                                    <Trash2 className="h-4 w-4 text-red-500" />
-                                  </Button>
-                                </div>
-                                <div className="mt-3 flex gap-2">
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => {
-                                      setEditingTask(grand);
-                                      setIsTaskEditOpen(true);
-                                    }}
-                                  >
-                                    編集
-                                  </Button>
-                                </div>
-                              </Card>
-                            ))}
+                                  {grandCount > 0 && !expandedMap[subtask.id] && (
+                                    <div className="text-xs text-gray-400 ml-5 mt-1">
+                                      子タスク {grandCount}件
+                                    </div>
+                                  )}
+
+                                  {/* 孫タスク */}
+                                  {expandedMap[subtask.id] && tasks
+                                    .filter((grand) => grand.parent_id === subtask.id)
+                                    .filter((t) => showCompleted || t.status !== "completed")
+                                    .map((grand) => (
+                                      <Card
+                                        key={grand.id}
+                                        className="p-3 ml-6 mt-2 bg-white border-l-2 border-green-300"
+                                      >
+                                        <div className="flex items-start justify-between gap-2">
+                                          <div className="flex-1 min-w-0">
+                                            <h5 className="font-medium text-xs">{grand.title}</h5>
+                                            {grand.description && (
+                                              <p className="text-xs text-gray-600 truncate">{grand.description}</p>
+                                            )}
+                                            <div className="text-xs text-gray-500 mt-1 flex gap-2 flex-wrap">
+                                              <span>期限: {formatDate(grand.deadline)}</span>
+                                              <span>優先度: {grand.priority || "なし"}</span>
+                                              <span>担当: {getAssigneeName(grand.assignee_id)}</span>
+                                            </div>
+                                          </div>
+                                          <div className="flex items-center gap-1 flex-shrink-0">
+                                            <Select
+                                              value={grand.status}
+                                              onValueChange={(value) =>
+                                                handleStatusChange(grand.id, value)
+                                              }
+                                            >
+                                              <SelectTrigger className="w-[100px] h-8 text-xs">
+                                                <SelectValue />
+                                              </SelectTrigger>
+                                              <SelectContent>
+                                                <SelectItem value="not_started">未着手</SelectItem>
+                                                <SelectItem value="in_progress">進行中</SelectItem>
+                                                <SelectItem value="completed">完了</SelectItem>
+                                              </SelectContent>
+                                            </Select>
+                                            <Button
+                                              variant="ghost"
+                                              size="sm"
+                                              className="h-8 w-8 p-0"
+                                              onClick={() => {
+                                                setEditingTask(grand);
+                                                setIsTaskEditOpen(true);
+                                              }}
+                                              title="編集"
+                                            >
+                                              編集
+                                            </Button>
+                                            <Button
+                                              variant="ghost"
+                                              size="sm"
+                                              className="h-8 w-8 p-0"
+                                              onClick={() => handleDeleteTask(grand.id)}
+                                              title="削除"
+                                            >
+                                              <Trash2 className="h-4 w-4 text-red-500" />
+                                            </Button>
+                                          </div>
+                                        </div>
+                                      </Card>
+                                    ))}
+                                </Card>
+                              );
+                            })}
+                        </div>
+                      );
+                    })
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* タイムラインビュー */}
+          {taskView === "timeline" && (
+            <div>
+              <div className="mb-4 flex items-center gap-4 flex-wrap">
+                <Select value={sortKey} onValueChange={(v: any) => setSortKey(v)}>
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="ソート方法" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="updated">更新日時</SelectItem>
+                    <SelectItem value="deadline">期限</SelectItem>
+                  </SelectContent>
+                </Select>
+                <label className="text-sm text-gray-700 flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4"
+                    checked={showCompleted}
+                    onChange={(e) => setShowCompleted(e.target.checked)}
+                  />
+                  完了タスクも表示
+                </label>
+              </div>
+
+              <div className="space-y-4">
+                {timelineGrouped().map(({ date, tasks: groupTasks }) => (
+                  <div key={date}>
+                    <h3 className="text-sm font-semibold text-gray-600 mb-2">{date}</h3>
+                    <div className="space-y-2">
+                      {groupTasks.map((task) => (
+                        <Card key={task.id} className="p-4">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex-1">
+                              <h4 className="font-semibold mb-1">{task.title}</h4>
+                              {task.description && (
+                                <p className="text-sm text-gray-600 mb-2">{task.description}</p>
+                              )}
+                              <div className="flex items-center gap-3 text-sm text-gray-500 flex-wrap">
+                                <span>期限: {formatDate(task.deadline)}</span>
+                                <span>優先度: {task.priority ?? 0}</span>
+                                <span>担当: {getAssigneeName(task.assignee_id)}</span>
+                              </div>
+                            </div>
+                            <Select
+                              value={task.status}
+                              onValueChange={(value) => handleStatusChange(task.id, value)}
+                            >
+                              <SelectTrigger className="w-[120px]">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="not_started">未着手</SelectItem>
+                                <SelectItem value="in_progress">進行中</SelectItem>
+                                <SelectItem value="completed">完了</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
                         </Card>
                       ))}
-                  </div>
-                ))
-            )}
-          </div>
-
-          {/* タスク編集ダイアログ */}
-          <Dialog open={isTaskEditOpen} onOpenChange={setIsTaskEditOpen}>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>タスクを編集</DialogTitle>
-              </DialogHeader>
-              {editingTask && (
-                <form
-                  onSubmit={async (e) => {
-                    e.preventDefault();
-                    try {
-                      const token = getToken();
-                      if (!token) throw new Error("認証トークンがありません");
-                      await TaskApi.updateTask(token, editingTask.id, {
-                        title: editingTask.title,
-                        description: editingTask.description || undefined,
-                        deadline: editingTask.deadline || undefined,
-                        priority: editingTask.priority,
-                        assignee_id: editingTask.assignee_id ?? undefined,
-                      });
-                      setIsTaskEditOpen(false);
-                      setEditingTask(null);
-                      loadTasks();
-                    } catch (err) {
-                      setError(
-                        err instanceof Error ? err.message : ERROR_MESSAGES.GENERIC_ERROR
-                      );
-                    }
-                  }}
-                  className="space-y-4"
-                >
-                  <div>
-                    <Label htmlFor="edit-title">タイトル</Label>
-                    <Input
-                      id="edit-title"
-                      value={editingTask.title}
-                      onChange={(e) =>
-                        setEditingTask({ ...editingTask, title: e.target.value })
-                      }
-                      required
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="edit-description">説明</Label>
-                    <Textarea
-                      id="edit-description"
-                      value={editingTask.description || ""}
-                      onChange={(e) =>
-                        setEditingTask({ ...editingTask, description: e.target.value })
-                      }
-                      rows={3}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="edit-deadline">期限</Label>
-                    <Input
-                      id="edit-deadline"
-                      type="datetime-local"
-                      value={editingTask.deadline || ""}
-                      onChange={(e) =>
-                        setEditingTask({ ...editingTask, deadline: e.target.value })
-                      }
-                    />
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="edit-priority">優先度</Label>
-                      <Select
-                        value={String(editingTask.priority)}
-                        onValueChange={(value) =>
-                          setEditingTask({ ...editingTask, priority: parseInt(value, 10) })
-                        }
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="0">なし</SelectItem>
-                          <SelectItem value="1">低</SelectItem>
-                          <SelectItem value="2">中</SelectItem>
-                          <SelectItem value="3">高</SelectItem>
-                        </SelectContent>
-                      </Select>
                     </div>
-                    {members.length > 0 && (
-                      <div>
-                        <Label htmlFor="edit-assignee">担当者</Label>
-                        <Select
-                          value={editingTask.assignee_id ? String(editingTask.assignee_id) : "none"}
-                          onValueChange={(value) =>
-                            setEditingTask({
-                              ...editingTask,
-                              assignee_id: value === "none" ? undefined : parseInt(value, 10),
-                            })
-                          }
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="担当者を選択" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="none">未設定</SelectItem>
-                            {members.map((m) => (
-                              <SelectItem key={m.id} value={String(m.user_id)}>
-                                {m.username}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    )}
                   </div>
-                  <Button type="submit" className="w-full">保存</Button>
-                </form>
-              )}
-            </DialogContent>
-          </Dialog>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* カレンダービュー */}
+          {taskView === "calendar" && (
+            <div>
+              <div className="mb-4 flex items-center justify-between">
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const prev = new Date(calendarDate);
+                      prev.setMonth(prev.getMonth() - 1);
+                      setCalendarDate(prev);
+                    }}
+                  >
+                    前月
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCalendarDate(new Date())}
+                  >
+                    今月
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const next = new Date(calendarDate);
+                      next.setMonth(next.getMonth() + 1);
+                      setCalendarDate(next);
+                    }}
+                  >
+                    翌月
+                  </Button>
+                </div>
+                <h3 className="text-lg font-semibold">
+                  {calendarDate.toLocaleDateString("ja-JP", {
+                    year: "numeric",
+                    month: "long",
+                  })}
+                </h3>
+                <label className="text-sm text-gray-700 flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4"
+                    checked={showCompleted}
+                    onChange={(e) => setShowCompleted(e.target.checked)}
+                  />
+                  完了も表示
+                </label>
+              </div>
+
+              <div className="grid grid-cols-7 gap-2">
+                {["日", "月", "火", "水", "木", "金", "土"].map((d) => (
+                  <div key={d} className="text-center font-semibold text-sm p-2">
+                    {d}
+                  </div>
+                ))}
+                {Array.from({ length: new Date(calendarDate.getFullYear(), calendarDate.getMonth(), 1).getDay() }).map((_, i) => (
+                  <div key={`empty-${i}`} className="aspect-square" />
+                ))}
+                {Array.from({ length: new Date(calendarDate.getFullYear(), calendarDate.getMonth() + 1, 0).getDate() }).map((_, i) => {
+                  const day = i + 1;
+                  const dayTasks = calendarTasks()[day] || [];
+                  return (
+                    <Card key={day} className="aspect-square p-2 flex flex-col">
+                      <p className="text-sm font-semibold">{day}</p>
+                      <div className="flex-1 text-xs space-y-1 overflow-y-auto">
+                        {dayTasks.slice(0, 2).map((t) => (
+                          <div
+                            key={t.id}
+                            className="bg-blue-100 text-blue-800 px-1 py-0.5 rounded truncate"
+                            title={t.title}
+                          >
+                            {t.title}
+                          </div>
+                        ))}
+                        {dayTasks.length > 2 && (
+                          <div className="text-gray-500 text-xs">
+                            +{dayTasks.length - 2} 他
+                          </div>
+                        )}
+                      </div>
+                    </Card>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -1036,7 +1234,7 @@ export function ProjectDetailPage() {
       )}
 
       {/* 設定タブ */}
-      {activeTab === "settings" && (
+      {activeTab === "settings" && isAdmin && (
         <div>
           <h2 className="text-xl font-semibold mb-4">プロジェクト設定</h2>
           <Card className="p-6">
@@ -1081,6 +1279,11 @@ export function ProjectDetailPage() {
               </form>
             </DialogContent>
           </Dialog>
+        </div>
+      )}
+      {activeTab === "settings" && !isAdmin && (
+        <div className="p-8 text-center text-gray-500">
+          <p>ADMINのみがプロジェクト設定にアクセスできます。</p>
         </div>
       )}
     </div>

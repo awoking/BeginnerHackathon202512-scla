@@ -32,6 +32,11 @@ class TaskRead(TaskBase):
     created_at: datetime
     updated_at: Optional[datetime] = None
 
+
+class TaskWithProjectRead(TaskRead):
+    project_name: str
+    project_creator_username: str
+
 class TaskStatusUpdate(BaseModel):
     status: str  # not_started / in_progress / completed
 

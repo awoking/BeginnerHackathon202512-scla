@@ -9,7 +9,15 @@ from app.models.user import User
 from app.models.task_history import TaskHistory
 from app.models.project import Project
 from app.models.project_member import ProjectMember
-from app.schemas.task import TaskCreate, TaskRead
+from app.schemas.task import (
+    TaskCreate,
+    TaskRead,
+    TaskStatusUpdate,
+    TaskAssigneeUpdate,
+    TaskPriorityUpdate,
+    TaskUpdate,
+    TaskWithProjectRead,
+)
 
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
@@ -205,7 +213,40 @@ def list_project_tasks(
     return visible
 
 
-from app.schemas.task import TaskStatusUpdate, TaskAssigneeUpdate, TaskPriorityUpdate, TaskUpdate
+@router.get("/assigned/me", response_model=list[TaskWithProjectRead])
+def list_my_assigned_tasks(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    # 自分が担当のタスクをプロジェクト情報付きで返す
+    tasks = (
+        db.query(Task, Project)
+        .join(Project, Task.project_id == Project.id)
+        .filter(Task.assignee_id == current_user.id)
+        .order_by(Task.updated_at.desc())
+        .all()
+    )
+
+    result = []
+    for task, project in tasks:
+        result.append({
+            "id": task.id,
+            "title": task.title,
+            "description": task.description,
+            "deadline": task.deadline,
+            "project_id": task.project_id,
+            "parent_id": task.parent_id,
+            "status": task.status,
+            "priority": task.priority,
+            "assignee_id": task.assignee_id,
+            "created_by": task.created_by,
+            "updated_by": task.updated_by,
+            "created_at": task.created_at,
+            "updated_at": task.updated_at,
+            "project_name": project.name,
+            "project_creator_username": project.creator.username if project.creator else "Unknown",
+        })
+    return result
 
 
 @router.patch("/{task_id}/status", response_model=TaskRead)
