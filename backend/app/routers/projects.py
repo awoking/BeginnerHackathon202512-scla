@@ -6,9 +6,10 @@ from app.database.session import get_db
 from app.models.user import User
 from app.models.project import Project
 from app.models.project_member import ProjectMember
+from app.models.task import Task
 from app.core.permissions import ROLE_ADMIN, ROLE_VIEWER, user_project_role
 from app.schemas.project import (
-    ProjectCreate, ProjectRead,
+    ProjectCreate, ProjectRead, ProjectUpdate,
     ProjectMemberCreate, ProjectMemberUpdate, ProjectMemberRead,
 )
 
@@ -33,6 +34,51 @@ def create_project(
     db.commit()
 
     return project
+
+
+@router.patch("/{project_id}", response_model=ProjectRead)
+def update_project(
+    project_id: int,
+    payload: ProjectUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="プロジェクトが見つかりません")
+    role = user_project_role(db, current_user.id, project.id)
+    # 変更は所有者またはADMINに限定
+    if not (project.creator_id == current_user.id or role == ROLE_ADMIN):
+        raise HTTPException(status_code=403, detail="権限がありません")
+
+    if payload.name is not None:
+        project.name = payload.name
+    if payload.description is not None:
+        project.description = payload.description
+
+    db.add(project)
+    db.commit()
+    db.refresh(project)
+    return project
+
+
+@router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_project(
+    project_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="プロジェクトが見つかりません")
+    role = user_project_role(db, current_user.id, project.id)
+    if not (project.creator_id == current_user.id or role == ROLE_ADMIN):
+        raise HTTPException(status_code=403, detail="権限がありません")
+
+    # メンバーとタスクはモデル側のリレーションでcascade delete設定済み想定
+    db.delete(project)
+    db.commit()
+    return None
 
 
 @router.get("/", response_model=list[ProjectRead])
@@ -105,7 +151,15 @@ def invite_member(
     db.add(member)
     db.commit()
     db.refresh(member)
-    return member
+    # レスポンスに username を含める
+    return {
+        "id": member.id,
+        "project_id": member.project_id,
+        "user_id": member.user_id,
+        "role": member.role,
+        "invited_at": member.invited_at,
+        "username": target_user.username,
+    }
 
 
 @router.get("/{project_id}/members", response_model=list[ProjectMemberRead])
@@ -120,7 +174,21 @@ def list_members(
     role = user_project_role(db, current_user.id, project.id)
     if not (project.creator_id == current_user.id or role in (ROLE_ADMIN, ROLE_VIEWER)):
         raise HTTPException(status_code=403, detail="閲覧権限がありません")
-    return db.query(ProjectMember).filter(ProjectMember.project_id == project_id).all()
+    
+    members = db.query(ProjectMember).filter(ProjectMember.project_id == project_id).all()
+    # usernameを含めるために追加情報を付与
+    result = []
+    for member in members:
+        member_dict = {
+            "id": member.id,
+            "project_id": member.project_id,
+            "user_id": member.user_id,
+            "role": member.role,
+            "invited_at": member.invited_at,
+            "username": member.user.username if member.user else "Unknown"
+        }
+        result.append(member_dict)
+    return result
 
 
 @router.patch("/{project_id}/members/{member_id}", response_model=ProjectMemberRead)
@@ -135,12 +203,30 @@ def change_member_role(
     if not project:
         raise HTTPException(status_code=404, detail="プロジェクトが見つかりません")
     role = user_project_role(db, current_user.id, project.id)
-    if not (project.creator_id == current_user.id or role == ROLE_ADMIN):
-        raise HTTPException(status_code=403, detail="権限がありません")
+    # 変更権限はプロジェクトの ADMIN のみ（所有者でもADMINでなければ不可）
+    if role != ROLE_ADMIN:
+        raise HTTPException(status_code=403, detail="ロール変更はADMINのみ許可されています")
 
     member = db.query(ProjectMember).filter(ProjectMember.id == member_id, ProjectMember.project_id == project_id).first()
     if not member:
         raise HTTPException(status_code=404, detail="メンバーが見つかりません")
+
+    # プロジェクト作成者のロールは常にADMINに固定
+    if member.user_id == project.creator_id:
+        if payload.role != ROLE_ADMIN:
+            raise HTTPException(status_code=400, detail="プロジェクト作成者のロールは変更できません")
+        member.role = ROLE_ADMIN
+        db.add(member)
+        db.commit()
+        db.refresh(member)
+        return {
+            "id": member.id,
+            "project_id": member.project_id,
+            "user_id": member.user_id,
+            "role": member.role,
+            "invited_at": member.invited_at,
+            "username": member.user.username if member.user else "Unknown",
+        }
 
     # ロール値検証（将来 Enum 化で厳密化予定）
     if payload.role not in (ROLE_ADMIN, ROLE_VIEWER):
@@ -150,4 +236,52 @@ def change_member_role(
     db.add(member)
     db.commit()
     db.refresh(member)
-    return member
+
+    # ProjectMemberRead で要求される username を含めて返却
+    return {
+        "id": member.id,
+        "project_id": member.project_id,
+        "user_id": member.user_id,
+        "role": member.role,
+        "invited_at": member.invited_at,
+        "username": member.user.username if member.user else "Unknown",
+    }
+
+
+@router.delete("/{project_id}/members/{member_id}", status_code=status.HTTP_204_NO_CONTENT)
+def remove_member(
+    project_id: int,
+    member_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="プロジェクトが見つかりません")
+
+    role = user_project_role(db, current_user.id, project.id)
+    if role != ROLE_ADMIN:
+        raise HTTPException(status_code=403, detail="メンバー削除はADMINのみ許可されています")
+
+    member = db.query(ProjectMember).filter(ProjectMember.id == member_id, ProjectMember.project_id == project_id).first()
+    if not member:
+        raise HTTPException(status_code=404, detail="メンバーが見つかりません")
+
+    # プロジェクト作成者の強制削除は許可しない（必要ならロール変更のみ）
+    if member.user_id == project.creator_id:
+        raise HTTPException(status_code=400, detail="プロジェクト作成者は削除できません")
+
+    # 担当タスクをプロジェクト作成者に付け替える
+    tasks = (
+        db.query(Task)
+        .filter(Task.project_id == project_id, Task.assignee_id == member.user_id)
+        .all()
+    )
+    for task in tasks:
+        task.assignee_id = project.creator_id
+        task.updated_by = current_user.id
+        db.add(task)
+
+    db.delete(member)
+    db.commit()
+    return None

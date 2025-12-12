@@ -13,6 +13,7 @@ export interface ProjectMember {
   id: number;
   project_id: number;
   user_id: number;
+  username: string;
   role: string; // "ADMIN" | "VIEWER"
   invited_at: string;
 }
@@ -42,6 +43,44 @@ export class ProjectApi {
     }
 
     return response.json();
+  }
+
+  // プロジェクト更新
+  static async updateProject(
+    token: string,
+    projectId: number,
+    payload: { name?: string; description?: string }
+  ): Promise<Project> {
+    const response = await fetch(`${API_BASE_URL}/projects/${projectId}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.detail || "プロジェクトの更新に失敗しました");
+    }
+
+    return response.json();
+  }
+
+  // プロジェクト削除
+  static async deleteProject(token: string, projectId: number): Promise<void> {
+    const response = await fetch(`${API_BASE_URL}/projects/${projectId}`, {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.detail || "プロジェクトの削除に失敗しました");
+    }
   }
 
   // プロジェクト詳細取得
@@ -136,11 +175,11 @@ export class ProjectApi {
   static async changeRole(
     token: string,
     projectId: number,
-    userId: number,
+    memberId: number,
     role: string
   ): Promise<ProjectMember> {
     const response = await fetch(
-      `${API_BASE_URL}/projects/${projectId}/members/${userId}/role`,
+      `${API_BASE_URL}/projects/${projectId}/members/${memberId}`,
       {
         method: "PATCH",
         headers: {
@@ -157,5 +196,27 @@ export class ProjectApi {
     }
 
     return response.json();
+  }
+
+  // メンバー削除
+  static async removeMember(
+    token: string,
+    projectId: number,
+    memberId: number
+  ): Promise<void> {
+    const response = await fetch(
+      `${API_BASE_URL}/projects/${projectId}/members/${memberId}`,
+      {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.detail || "メンバーの削除に失敗しました");
+    }
   }
 }

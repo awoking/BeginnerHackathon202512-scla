@@ -43,3 +43,12 @@ class TaskPriorityUpdate(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class TaskUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    deadline: Optional[datetime] = None
+    priority: Optional[int] = None
+    assignee_id: Optional[int] = None
+    parent_id: Optional[int] = None

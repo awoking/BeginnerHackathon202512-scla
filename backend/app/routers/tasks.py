@@ -7,6 +7,8 @@ from app.database.session import get_db
 from app.models.task import Task
 from app.models.user import User
 from app.models.task_history import TaskHistory
+from app.models.project import Project
+from app.models.project_member import ProjectMember
 from app.schemas.task import TaskCreate, TaskRead
 
 
@@ -25,6 +27,21 @@ def create_task(
     if role is None:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="プロジェクトメンバーのみタスク作成可能です")
 
+    project = db.query(Project).filter(Project.id == task_in.project_id).first()
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="プロジェクトが見つかりません")
+
+    auto_assignee_id = task_in.assignee_id
+    if task_in.assignee_id is None:
+        # 作成者以外のメンバーがいない場合、担当者を作成者に自動設定
+        other_members = (
+            db.query(ProjectMember)
+            .filter(ProjectMember.project_id == project.id, ProjectMember.user_id != project.creator_id)
+            .count()
+        )
+        if other_members == 0:
+            auto_assignee_id = project.creator_id
+
     task = Task(
         title=task_in.title,
         description=task_in.description,
@@ -33,7 +50,7 @@ def create_task(
         parent_id=task_in.parent_id,
         status=task_in.status or "not_started",
         priority=task_in.priority or 0,
-        assignee_id=task_in.assignee_id,
+        assignee_id=auto_assignee_id,
         created_by=current_user.id,
         updated_by=current_user.id,
     )
@@ -188,7 +205,7 @@ def list_project_tasks(
     return visible
 
 
-from app.schemas.task import TaskStatusUpdate, TaskAssigneeUpdate, TaskPriorityUpdate
+from app.schemas.task import TaskStatusUpdate, TaskAssigneeUpdate, TaskPriorityUpdate, TaskUpdate
 
 
 @router.patch("/{task_id}/status", response_model=TaskRead)
@@ -258,4 +275,56 @@ def update_priority(
     db.refresh(task)
     db.add(TaskHistory(task_id=task.id, user_id=current_user.id, action_type="PRIORITY_CHANGE", changes=f"{old} -> {task.priority}"))
     db.commit()
+    return task
+
+
+@router.patch("/{task_id}", response_model=TaskRead)
+def update_task(
+    task_id: int,
+    payload: TaskUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    task = db.query(Task).filter(Task.id == task_id).first()
+    if not task:
+        raise HTTPException(status_code=404, detail="タスクが見つかりません")
+    if not can_modify_task(db, current_user, task):
+        raise HTTPException(status_code=403, detail="権限がありません")
+
+    before = {
+        "title": task.title,
+        "description": task.description,
+        "deadline": task.deadline,
+        "priority": task.priority,
+        "assignee_id": task.assignee_id,
+        "parent_id": task.parent_id,
+    }
+
+    if payload.title is not None:
+        task.title = payload.title
+    if payload.description is not None:
+        task.description = payload.description
+    if payload.deadline is not None:
+        task.deadline = payload.deadline
+    if payload.priority is not None:
+        task.priority = payload.priority
+    if payload.assignee_id is not None:
+        task.assignee_id = payload.assignee_id
+    if payload.parent_id is not None:
+        task.parent_id = payload.parent_id
+
+    task.updated_by = current_user.id
+    db.add(task)
+    db.commit()
+    db.refresh(task)
+
+    changes = []
+    for k in before:
+        after_val = getattr(task, k)
+        if before[k] != after_val:
+            changes.append(f"{k}:{before[k]}->{after_val}")
+    if changes:
+        db.add(TaskHistory(task_id=task.id, user_id=current_user.id, action_type="UPDATE", changes=", ".join(changes)))
+        db.commit()
+
     return task

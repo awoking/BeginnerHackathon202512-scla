@@ -9,6 +9,10 @@ class ProjectBase(BaseModel):
 class ProjectCreate(ProjectBase):
     pass
 
+class ProjectUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+
 class ProjectRead(ProjectBase):
     id: int
     creator_id: int
@@ -32,6 +36,7 @@ class ProjectMemberRead(ProjectMemberBase):
     id: int
     project_id: int
     user_id: int
+    username: str  # ユーザー名も含める
     invited_at: datetime
 
     class Config:

@@ -80,6 +80,36 @@ export class TaskApi {
     return response.json();
   }
 
+  // タスク編集
+  static async updateTask(
+    token: string,
+    taskId: number,
+    payload: {
+      title?: string;
+      description?: string;
+      deadline?: string;
+      priority?: number;
+      assignee_id?: number | null;
+      parent_id?: number | null;
+    }
+  ): Promise<Task> {
+    const response = await fetch(`${API_BASE_URL}/tasks/${taskId}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.detail || "タスクの更新に失敗しました");
+    }
+
+    return response.json();
+  }
+
   // 単一タスク取得
   static async getTask(token: string, taskId: number): Promise<Task> {
     const response = await fetch(`${API_BASE_URL}/tasks/${taskId}`, {
