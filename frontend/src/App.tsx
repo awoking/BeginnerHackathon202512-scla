@@ -2,9 +2,11 @@ import { useEffect, useMemo, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { isOverdue, getTaskBackgroundClass } from "@/lib/task-utils";
+import { isOverdue, getTaskBackgroundClass, getCalendarTaskColorClass } from "@/lib/task-utils";
+import { formatDate, formatDateWithTime } from "@/lib/dateUtils";
 import { TaskApi, type Task } from "@/services/TaskApi";
 import { useAuth } from "@/hooks/useAuth";
+import { useTaskFiltering } from "@/hooks/useTaskFiltering";
 import { ERROR_MESSAGES } from "@/config/constants";
 
 function App() {
@@ -60,35 +62,31 @@ function App() {
     });
   };
 
+  const formatDateWithTime = (dateString?: string) => {
+    if (!dateString) return "期限なし";
+    const date = new Date(dateString);
+    return date.toLocaleDateString("ja-JP", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
   const statusLabel: Record<string, string> = {
     not_started: "未着手",
     in_progress: "進行中",
     completed: "完了",
   };
 
-  const timeline = useMemo(() => {
-    const assignedLeaves = tasks.filter((t) => leafTaskIds.has(t.id));
-    const filtered = showCompleted
-      ? assignedLeaves
-      : assignedLeaves.filter((t) => t.status !== "completed");
-    
-    const withoutOverdue = showOverdue
-      ? filtered
-      : filtered.filter((t) => !isOverdue(t));
-
-    const sorted = [...withoutOverdue].sort((a, b) => {
-      if (sortKey === "deadline") {
-        const aTime = a.deadline ? new Date(a.deadline).getTime() : Infinity;
-        const bTime = b.deadline ? new Date(b.deadline).getTime() : Infinity;
-        return aTime - bTime;
-      }
-      const aTime = new Date(a.updated_at || a.created_at).getTime();
-      const bTime = new Date(b.updated_at || b.created_at).getTime();
-      return bTime - aTime;
-    });
-
-    return sorted;
-  }, [tasks, showCompleted, showOverdue, sortKey]);
+  const timeline = useTaskFiltering({
+    tasks,
+    leafTaskIds,
+    showCompleted,
+    showOverdue,
+    sortKey,
+  });
 
   const calendarCells = useMemo(() => {
     const filtered = (showCompleted ? tasks : tasks.filter((t) => t.status !== "completed"))
@@ -288,12 +286,8 @@ function App() {
                       <div
                         key={t.id}
                         className={`text-[11px] truncate px-1 py-0.5 rounded border ${
-                          t.status === "completed"
-                            ? "bg-blue-50 text-blue-800 border-blue-100"
-                            : isOverdue(t)
-                            ? "bg-red-50 text-red-800 border-red-100"
-                            : "bg-blue-50 text-blue-800 border-blue-100"
-                        }`}
+                          getCalendarTaskColorClass(t)
+                        } border-gray-200`}
                         title={`${t.title} (${t.project_name || "プロジェクト"})`}
                       >
                         {t.title}
@@ -312,74 +306,43 @@ function App() {
         // タイムライン表示（空）
         <p className="text-gray-500">担当中のタスクはありません。</p>
       ) : (
-        // タイムライン表示（日付仕切り）
-        <div className="space-y-6">
-          {timeline
-            .reduce((acc: Array<{ dateKey: string; items: Task[] }>, t) => {
-              const rawDate =
-                sortKey === "deadline"
-                  ? (t.deadline ? new Date(t.deadline) : new Date(t.updated_at || t.created_at))
-                  : new Date(t.updated_at || t.created_at);
-              const key = rawDate.toISOString().slice(0, 10);
-              const last = acc[acc.length - 1];
-              if (!last || last.dateKey !== key) acc.push({ dateKey: key, items: [t] });
-              else last.items.push(t);
-              return acc;
-            }, [])
-            .map((group) => (
-              <div key={group.dateKey}>
-                <div className="flex items-center gap-2 mb-3">
-                  <div className="h-px flex-1 bg-gray-200" />
-                  <span className="text-sm text-gray-600 whitespace-nowrap">
-                    {new Date(group.dateKey).toLocaleDateString("ja-JP", { year: "numeric", month: "long", day: "numeric" })}
-                  </span>
-                  <div className="h-px flex-1 bg-gray-200" />
+        // タイムライン表示
+        <div className="space-y-2">
+          {timeline.map((task) => (
+            <Card key={task.id} className={`p-3 ${getTaskBackgroundClass(task)}`}>
+              <div className="flex justify-between items-start gap-2">
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-semibold text-sm leading-tight truncate">{task.title}</h3>
+                  {task.project_name && (
+                    <p className="text-xs text-gray-600 truncate">
+                      {task.project_creator_username || ""} / {task.project_name}
+                    </p>
+                  )}
+                  <div className="flex items-center gap-2 text-xs text-gray-500 mt-1 flex-wrap">
+                    {sortKey === "deadline" ? (
+                      <span className="font-bold text-gray-700">期限: {formatDateWithTime(task.deadline)}</span>
+                    ) : (
+                      <span className="font-bold text-gray-700">更新: {formatDateWithTime(task.updated_at || task.created_at)}</span>
+                    )}
+                    <span>優先度: {task.priority ?? 0}</span>
+                  </div>
                 </div>
-                <div className="space-y-3">
-                  {group.items.map((task) => (
-                    <Card key={task.id} className={`p-4 space-y-2 ${getTaskBackgroundClass(task)}`}>
-                      <div className="flex justify-between items-start gap-2">
-                        <div>
-                          <h3 className="font-semibold text-lg leading-snug">{task.title}</h3>
-                          {task.project_name && (
-                            <p className="text-sm text-gray-600">
-                              {task.project_creator_username || ""} / {task.project_name}
-                            </p>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Select
-                            value={task.status}
-                            onValueChange={(value) => changeStatus(task.id, value)}
-                          >
-                            <SelectTrigger className="w-[140px]">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="not_started">未着手</SelectItem>
-                              <SelectItem value="in_progress">進行中</SelectItem>
-                              <SelectItem value="completed">完了</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-                      {task.description && (
-                        <p className="text-sm text-gray-600 line-clamp-2">{task.description}</p>
-                      )}
-                      <div className="flex items-center gap-3 text-sm text-gray-500">
-                        <span>期限: {formatDate(task.deadline)}</span>
-                        <span>優先度: {task.priority ?? 0}</span>
-                        <span>
-                          {sortKey === "deadline"
-                            ? `期限基準: ${formatDate(task.deadline)}`
-                            : `更新: ${formatDate(task.updated_at || task.created_at)}`}
-                        </span>
-                      </div>
-                    </Card>
-                  ))}
-                </div>
+                <Select
+                  value={task.status}
+                  onValueChange={(value) => changeStatus(task.id, value)}
+                >
+                  <SelectTrigger className="w-[110px] h-8 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="not_started">未着手</SelectItem>
+                    <SelectItem value="in_progress">進行中</SelectItem>
+                    <SelectItem value="completed">完了</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
-            ))}
+            </Card>
+          ))}
         </div>
       )}
     </div>

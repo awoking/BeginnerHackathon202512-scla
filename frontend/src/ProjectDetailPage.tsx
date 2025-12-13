@@ -430,6 +430,18 @@ export function ProjectDetailPage() {
     });
   };
 
+  const formatDateWithTime = (dateString?: string): string => {
+    if (!dateString) return "期限なし";
+    const date = new Date(dateString);
+    return date.toLocaleDateString("ja-JP", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
   const getDateKey = (dateString?: string): string => {
     if (!dateString) return "期限なし";
     const date = new Date(dateString);
@@ -441,11 +453,14 @@ export function ProjectDetailPage() {
     const filtered = showCompleted
       ? assignedLeaves
       : assignedLeaves.filter((t) => t.status !== "completed");
+    const withoutOverdue = showOverdue
+      ? filtered
+      : filtered.filter((t) => !isOverdue(t));
     const grouped: Record<string, Task[]> = {};
     const dateKeyFn = sortKey === "deadline"
       ? (t: Task) => getDateKey(t.deadline)
       : (t: Task) => getDateKey(t.updated_at || t.created_at);
-    filtered.forEach((t) => {
+    withoutOverdue.forEach((t) => {
       const key = dateKeyFn(t);
       if (!grouped[key]) grouped[key] = [];
       grouped[key].push(t);
@@ -523,8 +538,8 @@ export function ProjectDetailPage() {
           プロジェクト一覧に戻る
         </Button>
 
-        <div className="border-b pb-4">
-          <div className="flex items-start justify-between gap-4">
+        <div className="border-b pb-6">
+          <div className="flex items-end justify-between gap-6">
             <div className="flex-1 min-w-0">
               <h1 className="text-3xl font-bold mb-2">{project.name}</h1>
               {project.description && (
@@ -537,12 +552,12 @@ export function ProjectDetailPage() {
             
             {/* 進捗ゲージ */}
             {leafProgress.total > 0 && (
-              <div className="flex-shrink-0">
+              <div className="flex-shrink-0 w-56 mb-1">
                 <ProgressBar
                   value={Math.round((leafProgress.completed / leafProgress.total) * 100)}
                   label={`${leafProgress.completed}/${leafProgress.total} 完了`}
                   showPercentage={true}
-                  className="w-40"
+                  className="w-full"
                 />
               </div>
             )}
@@ -792,7 +807,7 @@ export function ProjectDetailPage() {
                 </label>
               </div>
 
-              <div className="space-y-2">
+              <div className="space-y-4 mt-6">
                 {tasks.filter((t) => {
                   if (!showCompleted && t.status === "completed") return false;
                   if (!showOverdue && isOverdue(t)) return false;
@@ -809,11 +824,11 @@ export function ProjectDetailPage() {
                       return (
                         <div key={task.id}>
                           {/* 親タスク */}
-                          <Card className={`p-3 ${getTaskBackgroundClass(task)}`}>
+                          <Card className={`p-3 shadow-lg rounded-none ${getTaskBackgroundClass(task)}`}>
                             <div className="flex items-start justify-between gap-2">
-                              <div className="flex-1 flex items-start gap-2">
+                              <div className="flex-1 flex items-start gap-1.5">
                                 <button
-                                  className="mt-1 text-gray-600 hover:text-gray-900 flex-shrink-0"
+                                  className="mt-0.5 text-gray-600 hover:text-gray-900 flex-shrink-0 text-sm font-bold"
                                   onClick={() =>
                                     setExpandedMap({
                                       ...expandedMap,
@@ -824,9 +839,9 @@ export function ProjectDetailPage() {
                                   {childCount > 0 ? (expandedMap[task.id] ? "▼" : "▶") : ""}
                                 </button>
                                 <div className="flex-1 min-w-0">
-                                  <h3 className="font-semibold">{task.title}</h3>
+                                  <h3 className="font-bold text-sm">{task.title}</h3>
                                   {task.description && (
-                                    <p className="text-xs text-gray-600 truncate">{task.description}</p>
+                                    <p className="text-xs text-gray-600 line-clamp-1 mt-0.5">{task.description}</p>
                                   )}
                                   <div className="text-xs text-gray-500 mt-1 flex gap-2 flex-wrap">
                                     <span>期限: {formatDate(task.deadline)}</span>
@@ -842,13 +857,13 @@ export function ProjectDetailPage() {
                                     handleStatusChange(task.id, value)
                                   }
                                 >
-                                  <SelectTrigger className="w-[100px] h-8 text-xs">
+                                  <SelectTrigger className="w-[100px] h-8 text-xs font-bold rounded-none">
                                     <SelectValue />
                                   </SelectTrigger>
                                   <SelectContent>
-                                    <SelectItem value="not_started">未着手</SelectItem>
-                                    <SelectItem value="in_progress">進行中</SelectItem>
-                                    <SelectItem value="completed">完了</SelectItem>
+                                    <SelectItem value="not_started"><span className="font-bold">未着手</span></SelectItem>
+                                    <SelectItem value="in_progress"><span className="font-bold">進行中</span></SelectItem>
+                                    <SelectItem value="completed"><span className="font-bold">完了</span></SelectItem>
                                   </SelectContent>
                                 </Select>
                                 <Button
@@ -897,80 +912,83 @@ export function ProjectDetailPage() {
                             .map((subtask) => {
                               const grandCount = tasks.filter((t) => t.parent_id === subtask.id).length;
                               return (
-                                <Card key={subtask.id} className={`p-3 ml-6 mt-2 border-l-2 border-blue-300 ${getTaskBackgroundClass(subtask)}`}>
-                                  <div className="flex items-start justify-between gap-2">
-                                    <div className="flex-1 flex items-start gap-2">
-                                      <button
-                                        className="mt-1 text-gray-500 hover:text-gray-700 flex-shrink-0"
-                                        onClick={() =>
-                                          setExpandedMap({
-                                            ...expandedMap,
-                                            [subtask.id]: !expandedMap[subtask.id],
-                                          })
-                                        }
-                                      >
-                                        {grandCount > 0 ? (expandedMap[subtask.id] ? "▼" : "▶") : ""}
-                                      </button>
-                                      <div className="flex-1 min-w-0">
-                                        <h4 className="font-medium text-sm">{subtask.title}</h4>
-                                        {subtask.description && (
-                                          <p className="text-xs text-gray-600 truncate">{subtask.description}</p>
-                                        )}
-                                        <div className="text-xs text-gray-500 mt-1 flex gap-2 flex-wrap">
-                                          <span>期限: {formatDate(subtask.deadline)}</span>
-                                          <span>優先度: {subtask.priority || "なし"}</span>
-                                          <span>担当: {getAssigneeName(subtask.assignee_id)}</span>
+                                <div key={subtask.id} className="mt-3 ml-6 max-w-3xl">
+                                  <Card className={`p-2 shadow-md rounded-none ${getTaskBackgroundClass(subtask)}`}>
+                                    <div className="flex items-start justify-between gap-1">
+                                      <div className="flex-1 flex items-start gap-1">
+                                        <button
+                                          className="mt-0.5 text-gray-500 hover:text-gray-700 flex-shrink-0 text-sm"
+                                          onClick={() =>
+                                            setExpandedMap({
+                                              ...expandedMap,
+                                              [subtask.id]: !expandedMap[subtask.id],
+                                            })
+                                          }
+                                        >
+                                          {grandCount > 0 ? (expandedMap[subtask.id] ? "▼" : "▶") : ""}
+                                        </button>
+                                        <div className="flex-1 min-w-0">
+                                          <h4 className="font-bold text-xs">{subtask.title}</h4>
+                                          {subtask.description && (
+                                            <p className="text-xs text-gray-600 line-clamp-1 mt-0.5">{subtask.description}</p>
+                                          )}
+                                          <div className="text-xs text-gray-500 mt-1 flex gap-2 flex-wrap">
+                                            <span>期限: {formatDate(subtask.deadline)}</span>
+                                            <span>優先度: {subtask.priority || "なし"}</span>
+                                            <span>担当: {getAssigneeName(subtask.assignee_id)}</span>
+                                          </div>
                                         </div>
                                       </div>
+                                      <div className="flex items-center gap-0.5 flex-shrink-0">
+                                        <Select
+                                          value={subtask.status}
+                                          onValueChange={(value) =>
+                                            handleStatusChange(subtask.id, value)
+                                          }
+                                        >
+                                          <SelectTrigger className="w-[90px] h-7 text-xs font-bold rounded-none">
+                                            <SelectValue />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            <SelectItem value="not_started"><span className="font-bold">未着手</span></SelectItem>
+                                            <SelectItem value="in_progress"><span className="font-bold">進行中</span></SelectItem>
+                                            <SelectItem value="completed"><span className="font-bold">完了</span></SelectItem>
+                                          </SelectContent>
+                                        </Select>
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-7 w-7 p-0"
+                                          onClick={() => handleCreateSubtask(subtask.id)}
+                                          title="子タスク作成"
+                                        >
+                                          <Plus className="h-3.5 w-3.5" />
+                                        </Button>
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-7 w-7 p-0 text-xs"
+                                          onClick={() => {
+                                            setEditingTask(subtask);
+                                            setIsTaskEditOpen(true);
+                                          }}
+                                          title="編集"
+                                        >
+                                          編集
+                                        </Button>
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-7 w-7 p-0"
+                                          onClick={() => handleDeleteTask(subtask.id)}
+                                          title="削除"
+                                        >
+                                          <Trash2 className="h-3.5 w-3.5 text-red-500" />
+                                        </Button>
+                                      </div>
                                     </div>
-                                    <div className="flex items-center gap-1 flex-shrink-0">
-                                      <Select
-                                        value={subtask.status}
-                                        onValueChange={(value) =>
-                                          handleStatusChange(subtask.id, value)
-                                        }
-                                      >
-                                        <SelectTrigger className="w-[100px] h-8 text-xs">
-                                          <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                          <SelectItem value="not_started">未着手</SelectItem>
-                                          <SelectItem value="in_progress">進行中</SelectItem>
-                                          <SelectItem value="completed">完了</SelectItem>
-                                        </SelectContent>
-                                      </Select>
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-8 w-8 p-0"
-                                        onClick={() => handleCreateSubtask(subtask.id)}
-                                        title="子タスク作成"
-                                      >
-                                        <Plus className="h-4 w-4" />
-                                      </Button>
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-8 w-8 p-0"
-                                        onClick={() => {
-                                          setEditingTask(subtask);
-                                          setIsTaskEditOpen(true);
-                                        }}
-                                        title="編集"
-                                      >
-                                        編集
-                                      </Button>
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-8 w-8 p-0"
-                                        onClick={() => handleDeleteTask(subtask.id)}
-                                        title="削除"
-                                      >
-                                        <Trash2 className="h-4 w-4 text-red-500" />
-                                      </Button>
-                                    </div>
-                                  </div>
+                                  </Card>
+
                                   {grandCount > 0 && !expandedMap[subtask.id] && (
                                     <div className="text-xs text-gray-400 ml-5 mt-1">
                                       子タスク {grandCount}件
@@ -982,64 +1000,65 @@ export function ProjectDetailPage() {
                                     .filter((grand) => grand.parent_id === subtask.id)
                                     .filter((t) => (showCompleted || t.status !== "completed") && (showOverdue || !isOverdue(t)))
                                     .map((grand) => (
-                                      <Card
-                                        key={grand.id}
-                                        className={`p-3 ml-6 mt-2 border-l-2 border-green-300 ${getTaskBackgroundClass(grand)}`}
-                                      >
-                                        <div className="flex items-start justify-between gap-2">
-                                          <div className="flex-1 min-w-0">
-                                            <h5 className="font-medium text-xs">{grand.title}</h5>
-                                            {grand.description && (
-                                              <p className="text-xs text-gray-600 truncate">{grand.description}</p>
-                                            )}
-                                            <div className="text-xs text-gray-500 mt-1 flex gap-2 flex-wrap">
-                                              <span>期限: {formatDate(grand.deadline)}</span>
-                                              <span>優先度: {grand.priority || "なし"}</span>
-                                              <span>担当: {getAssigneeName(grand.assignee_id)}</span>
+                                      <div key={grand.id} className="mt-2 ml-6 max-w-2xl">
+                                        <Card
+                                          className={`p-2 shadow-sm rounded-none ${getTaskBackgroundClass(grand)}`}
+                                        >
+                                          <div className="flex items-start justify-between gap-1">
+                                            <div className="flex-1 min-w-0">
+                                              <h5 className="font-bold text-xs">{grand.title}</h5>
+                                              {grand.description && (
+                                                <p className="text-xs text-gray-600 line-clamp-1 mt-0.5">{grand.description}</p>
+                                              )}
+                                              <div className="text-xs text-gray-500 mt-1 flex gap-2 flex-wrap">
+                                                <span>期限: {formatDate(grand.deadline)}</span>
+                                                <span>優先度: {grand.priority || "なし"}</span>
+                                                <span>担当: {getAssigneeName(grand.assignee_id)}</span>
+                                              </div>
+                                            </div>
+                                            <div className="flex items-center gap-0.5 flex-shrink-0">
+                                              <Select
+                                                value={grand.status}
+                                                onValueChange={(value) =>
+                                                  handleStatusChange(grand.id, value)
+                                                }
+                                              >
+                                                <SelectTrigger className="w-[90px] h-7 text-xs font-bold rounded-none">
+                                                  <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                  <SelectItem value="not_started"><span className="font-bold">未着手</span></SelectItem>
+                                                  <SelectItem value="in_progress"><span className="font-bold">進行中</span></SelectItem>
+                                                  <SelectItem value="completed"><span className="font-bold">完了</span></SelectItem>
+                                                </SelectContent>
+                                              </Select>
+                                              <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                className="h-7 w-7 p-0 text-xs"
+                                                onClick={() => {
+                                                  setEditingTask(grand);
+                                                  setIsTaskEditOpen(true);
+                                                }}
+                                                title="編集"
+                                              >
+                                                編集
+                                              </Button>
+                                              <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                className="h-7 w-7 p-0"
+                                                onClick={() => handleDeleteTask(grand.id)}
+                                                title="削除"
+                                              >
+                                                <Trash2 className="h-3.5 w-3.5 text-red-500" />
+                                              </Button>
                                             </div>
                                           </div>
-                                          <div className="flex items-center gap-1 flex-shrink-0">
-                                            <Select
-                                              value={grand.status}
-                                              onValueChange={(value) =>
-                                                handleStatusChange(grand.id, value)
-                                              }
-                                            >
-                                              <SelectTrigger className="w-[100px] h-8 text-xs">
-                                                <SelectValue />
-                                              </SelectTrigger>
-                                              <SelectContent>
-                                                <SelectItem value="not_started">未着手</SelectItem>
-                                                <SelectItem value="in_progress">進行中</SelectItem>
-                                                <SelectItem value="completed">完了</SelectItem>
-                                              </SelectContent>
-                                            </Select>
-                                            <Button
-                                              variant="ghost"
-                                              size="sm"
-                                              className="h-8 w-8 p-0"
-                                              onClick={() => {
-                                                setEditingTask(grand);
-                                                setIsTaskEditOpen(true);
-                                              }}
-                                              title="編集"
-                                            >
-                                              編集
-                                            </Button>
-                                            <Button
-                                              variant="ghost"
-                                              size="sm"
-                                              className="h-8 w-8 p-0"
-                                              onClick={() => handleDeleteTask(grand.id)}
-                                              title="削除"
-                                            >
-                                              <Trash2 className="h-4 w-4 text-red-500" />
-                                            </Button>
-                                          </div>
-                                        </div>
-                                      </Card>
+                                        </Card>
+                                      </div>
                                     ))}
-                                </Card>
+                                </div>
                               );
                             })}
                         </div>
@@ -1083,30 +1102,39 @@ export function ProjectDetailPage() {
                 </label>
               </div>
 
-              <div className="space-y-4">
+              <div className="space-y-2">
                 {timelineGrouped().map(({ date, tasks: groupTasks }) => (
                   <div key={date}>
-                    <h3 className="text-sm font-semibold text-gray-600 mb-2">{date}</h3>
                     <div className="space-y-2">
                       {groupTasks.map((task) => (
-                        <Card key={task.id} className="p-4">
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="flex-1">
-                              <h4 className="font-semibold mb-1">{task.title}</h4>
+                        <Card key={task.id} className={`p-3 ${getTaskBackgroundClass(task)}`}>
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1 min-w-0">
+                              <h4 className="font-semibold text-sm truncate">{task.title}</h4>
                               {task.description && (
-                                <p className="text-sm text-gray-600 mb-2">{task.description}</p>
+                                <p className="text-xs text-gray-600 line-clamp-1 mt-0.5">{task.description}</p>
                               )}
-                              <div className="flex items-center gap-3 text-sm text-gray-500 flex-wrap">
-                                <span>期限: {formatDate(task.deadline)}</span>
-                                <span>優先度: {task.priority ?? 0}</span>
-                                <span>担当: {getAssigneeName(task.assignee_id)}</span>
+                              <div className="flex items-center gap-2 text-xs text-gray-500 mt-1 flex-wrap">
+                                {sortKey === "deadline" ? (
+                                  <>
+                                    <span className="font-bold text-gray-700">期限: {formatDateWithTime(task.deadline)}</span>
+                                    <span>優先度: {task.priority ?? 0}</span>
+                                    <span>担当: {getAssigneeName(task.assignee_id)}</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <span className="font-bold text-gray-700">更新: {formatDateWithTime(task.updated_at || task.created_at)}</span>
+                                    <span>優先度: {task.priority ?? 0}</span>
+                                    <span>担当: {getAssigneeName(task.assignee_id)}</span>
+                                  </>
+                                )}
                               </div>
                             </div>
                             <Select
                               value={task.status}
                               onValueChange={(value) => handleStatusChange(task.id, value)}
                             >
-                              <SelectTrigger className="w-[120px]">
+                              <SelectTrigger className="w-[100px] h-8 text-xs">
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
@@ -1205,7 +1233,13 @@ export function ProjectDetailPage() {
                         {dayTasks.slice(0, 2).map((t) => (
                           <div
                             key={t.id}
-                            className="bg-blue-100 text-blue-800 px-1 py-0.5 rounded truncate"
+                            className={`px-1 py-0.5 rounded truncate ${
+                              t.status === "completed"
+                                ? "bg-blue-100 text-blue-800"
+                                : isOverdue(t)
+                                ? "bg-red-100 text-red-800"
+                                : "bg-gray-100 text-gray-800"
+                            }`}
                             title={t.title}
                           >
                             {t.title}
