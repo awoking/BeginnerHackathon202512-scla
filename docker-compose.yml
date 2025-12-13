@@ -8,7 +8,7 @@ services:
       # ソースコードのホットリロードマウント
       - ./backend:/app
       # FastAPIの開発サーバーを起動し、コード変更時に自動リロードする
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    command: uvicorn app.main:app  --port 8000 --reload
 
   # 2. React (フロントエンド) サービス
   frontend:
@@ -17,7 +17,7 @@ services:
       - "5173:5173"                  # ホストの 5173 番ポートにマッピング
     environment:
       # ホストのブラウザからアクセスする場合は localhost を使用
-      VITE_API_BASE_URL: http://0.0.0.0:8000
+      VITE_API_BASE_URL: http://localhost:8000
     volumes:
       # ソースコードのホットリロードマウント
       - ./frontend:/app
