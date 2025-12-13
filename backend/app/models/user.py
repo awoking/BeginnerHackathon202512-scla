@@ -1,14 +1,15 @@
 from sqlalchemy import Column, Integer, String
 from sqlalchemy.orm import relationship
 from app.database.session import Base
-
-
+from typing import Optional
+import random
 class User(Base):
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True)
     username = Column(String(50), unique=True, index=True)
     hashed_password = Column(String(200))
+    icon = Column(Integer, default = lambda:random.randint(1,3), nullable=False) #フロント側で整数と画像を紐づけておく。初期値はランダム。
 
     # プロジェクト機能用の関連（旧 Membership/owner 参照は退役）
     project_memberships = relationship(
