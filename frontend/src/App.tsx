@@ -166,7 +166,29 @@ function App() {
   };
 
   return (
-    <div className="container mx-auto max-w-6xl">
+    <div className="container mx-auto max-w-6xl relative">
+      <style>{`
+        @keyframes slimeMoveLR {
+          0% { transform: translateX(-48px); }
+          100% { transform: translateX(calc(100vw + 48px)); }
+        }
+      `}</style>
+      {/* fixed overlay so animation doesn't affect page layout or create horizontal scroll */}
+      <div style={{ position: 'fixed', top: '48px', left: 0, width: '100vw', height: 0, pointerEvents: 'none', overflow: 'visible', zIndex: 9999 }}>
+        <img
+          src="/images/slime.gif"
+          alt="slime"
+          style={{
+            position: 'absolute',
+            left: 0,
+            top: 0,
+            width: '48px',
+            height: '48px',
+            transform: 'translateX(-48px)',
+            animation: 'slimeMoveLR 60s linear infinite',
+          }}
+        />
+      </div>
       <div className="mb-6">
         <h1 className="text-3xl font-bold mb-4">ダッシュボード</h1>
         

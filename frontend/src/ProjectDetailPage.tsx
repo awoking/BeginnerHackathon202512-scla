@@ -469,6 +469,29 @@ export function ProjectDetailPage() {
     }
   };
 
+  // 自分でプロジェクトから脱退する（VIEWERでも可能）
+  const handleLeaveProject = async (member: ProjectMember) => {
+    if (!confirm("プロジェクトから脱退しますか？")) return;
+    try {
+      const token = getToken();
+      if (!token || !projectId) throw new Error("認証情報が不足しています");
+      // 作成者は脱退不可
+      if (project && member.user_id === project.creator_id) {
+        setError("プロジェクト作成者は脱退できません");
+        return;
+      }
+      await ProjectApi.removeMember(token, parseInt(projectId, 10), member.id);
+      // 自分が脱退した場合はプロジェクト一覧へ遷移
+      if (member.user_id === currentUserId) {
+        navigate("/projects");
+      } else {
+        loadMembers();
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : ERROR_MESSAGES.GENERIC_ERROR);
+    }
+  };
+
   const formatDate = (dateString?: string) => {
     if (!dateString) return "期限なし";
     return new Date(dateString).toLocaleDateString("ja-JP", {
@@ -1483,6 +1506,16 @@ export function ProjectDetailPage() {
                         onClick={() => handleRemoveMember(member)}
                       >
                         削除
+                      </Button>
+                    )}
+                    {/* 自分自身の場合は脱退ボタンを表示（作成者は除外） */}
+                    {member.user_id === currentUserId && (!project || member.user_id !== project.creator_id) && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleLeaveProject(member)}
+                      >
+                        脱退
                       </Button>
                     )}
                   </div>
