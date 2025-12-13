@@ -91,6 +91,12 @@ export function ProjectDetailPage() {
   // タスク編集用
   const [isTaskEditOpen, setIsTaskEditOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
+  // 編集フォーム用フィールド
+  const [editTaskTitle, setEditTaskTitle] = useState("");
+  const [editTaskDescription, setEditTaskDescription] = useState<string | undefined>(undefined);
+  const [editTaskDeadline, setEditTaskDeadline] = useState<string | undefined>(undefined);
+  const [editTaskPriority, setEditTaskPriority] = useState<number>(0);
+  const [editTaskAssignee, setEditTaskAssignee] = useState<number | undefined>(undefined);
 
   useEffect(() => {
     // JWTからユーザーIDを取得（検証なしデコード）
@@ -336,6 +342,48 @@ export function ProjectDetailPage() {
   const handleCreateSubtask = (parentId: number) => {
     setParentTaskId(parentId);
     setIsTaskDialogOpen(true);
+  };
+
+  // 編集対象が変わったらフォームを初期化
+  useEffect(() => {
+    if (editingTask) {
+      setEditTaskTitle(editingTask.title || "");
+      setEditTaskDescription(editingTask.description || undefined);
+      setEditTaskDeadline(editingTask.deadline || undefined);
+      setEditTaskPriority(editingTask.priority ?? 0);
+      setEditTaskAssignee(editingTask.assignee_id ?? undefined);
+    } else {
+      setEditTaskTitle("");
+      setEditTaskDescription(undefined);
+      setEditTaskDeadline(undefined);
+      setEditTaskPriority(0);
+      setEditTaskAssignee(undefined);
+    }
+  }, [editingTask]);
+
+  const handleUpdateTask = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    if (!editingTask) return;
+    try {
+      const token = getToken();
+      if (!token) throw new Error("認証トークンがありません");
+
+      const payload: any = {
+        title: editTaskTitle,
+        description: editTaskDescription || undefined,
+        deadline: editTaskDeadline || undefined,
+        priority: editTaskPriority,
+        assignee_id: editTaskAssignee ?? null,
+      };
+
+      await TaskApi.updateTask(token, editingTask.id, payload);
+      setIsTaskEditOpen(false);
+      setEditingTask(null);
+      loadTasks();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : ERROR_MESSAGES.GENERIC_ERROR);
+    }
   };
 
   const handleOpenNewTaskDialog = () => {
@@ -769,6 +817,79 @@ export function ProjectDetailPage() {
                 </form>
               </DialogContent>
             </Dialog>
+              {/* タスク編集ダイアログ */}
+              <Dialog open={isTaskEditOpen} onOpenChange={(open) => { if (!open) { setIsTaskEditOpen(false); setEditingTask(null); } else { setIsTaskEditOpen(open); } }}>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>タスクを編集</DialogTitle>
+                    <DialogDescription>タスクの情報を編集して保存してください</DialogDescription>
+                  </DialogHeader>
+                  <form onSubmit={handleUpdateTask} className="space-y-4">
+                    <div>
+                      <Label htmlFor="edit-title">タイトル *</Label>
+                      <Input
+                        id="edit-title"
+                        value={editTaskTitle}
+                        onChange={(e) => setEditTaskTitle(e.target.value)}
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="edit-description">説明</Label>
+                      <Textarea
+                        id="edit-description"
+                        value={editTaskDescription || ""}
+                        onChange={(e) => setEditTaskDescription(e.target.value || undefined)}
+                        rows={3}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="edit-deadline">期限</Label>
+                      <Input
+                        id="edit-deadline"
+                        type="datetime-local"
+                        value={editTaskDeadline || ""}
+                        onChange={(e) => setEditTaskDeadline(e.target.value || undefined)}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="edit-priority">優先度</Label>
+                      <Select value={String(editTaskPriority)} onValueChange={(v) => setEditTaskPriority(parseInt(v, 10))}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="0">なし</SelectItem>
+                          <SelectItem value="1">低</SelectItem>
+                          <SelectItem value="2">中</SelectItem>
+                          <SelectItem value="3">高</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {members.length > 0 && (
+                      <div>
+                        <Label htmlFor="edit-assignee">担当者</Label>
+                        <Select value={editTaskAssignee ? String(editTaskAssignee) : "none"} onValueChange={(v) => setEditTaskAssignee(v === "none" ? undefined : parseInt(v, 10))}>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">未設定</SelectItem>
+                            {members.map((m) => (
+                              <SelectItem key={m.id} value={String(m.user_id)}>
+                                {m.username}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+                    <Button type="submit" className="w-full">
+                      保存
+                    </Button>
+                  </form>
+                </DialogContent>
+              </Dialog>
           </div>
 
           {/* 階層表示（デフォルト） */}

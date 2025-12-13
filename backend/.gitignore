@@ -1,0 +1,9 @@
+.DS_Store
+.venv
+
+__pycache__/
+*.pyc 
+# すべての.pycファイルと__pycache__フォルダを無視する。
+
+backend/app/db
+
