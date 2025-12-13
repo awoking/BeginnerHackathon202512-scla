@@ -3,7 +3,7 @@ services:
   backend:
     build: ./backend                 # ./backend/Dockerfile を使用してビルド
     ports:
-      - "8000:8000"                  # ホストの 8000 番ポートにマッピング
+      - "8001:8000"                  # ホストの 8000 番ポートにマッピング
     volumes:
       # ソースコードのホットリロードマウント
       - ./backend:/app
@@ -16,10 +16,10 @@ services:
   frontend:
     build: ./frontend                # ./frontend/Dockerfile を使用してビルド
     ports:
-      - "5173:5173"                  # ホストの 5173 番ポートにマッピング
+      - "5174:5173"                  # ホストの 5173 番ポートにマッピング
     environment:
       # ホストのブラウザからアクセスする場合は localhost を使用
-      VITE_API_BASE_URL: http://localhost:8000
+      VITE_API_BASE_URL: http://backend:8000
     volumes:
       # ソースコードのホットリロードマウント
       - ./frontend:/app
