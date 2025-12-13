@@ -4,7 +4,15 @@ from app.models.team import Team
 from app.models.membership import Membership
 from app.models.user import User
 
-def get_team_if_member(
+def get_teamfromname(
+        teamname: int,
+        db: Session
+):
+    team = db.query(Team).filter(Team.name == teamname):
+    if team
+
+
+def get_teamfromid(
         user_id: int,
         team_name: str,
         db: Session
