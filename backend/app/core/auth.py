@@ -6,8 +6,13 @@ from app.models.user import User
 from app.database.session import get_db
 from sqlalchemy.orm import Session
 
-SECRET_KEY = "YOUR_SECRET_KEY"
-ALGORITHM = "HS256"
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+SECRET_KEY = os.getenv("SECRET_KEY", "YOUR_SECRET_KEY")
+ALGORITHM = os.getenv("ALGORITHM", "HS256")
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 
