@@ -2,6 +2,9 @@ from sqlalchemy import Column, Integer, String, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from app.database.session import Base
+from zoneinfo import ZoneInfo
+
+JST = ZoneInfo("Asia/Tokyo")
 
 class ProjectMember(Base):
     __tablename__ = "project_members"
@@ -12,7 +15,7 @@ class ProjectMember(Base):
     # role: ADMIN or VIEWER
     role = Column(String, nullable=False, default="VIEWER")
 
-    invited_at = Column(DateTime, default=datetime.utcnow)
+    invited_at = Column(DateTime, default=lambda:datetime.now(JST))
 
     project = relationship("Project", back_populates="members")
     user = relationship("User", back_populates="project_memberships")
