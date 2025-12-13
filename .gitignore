@@ -6,4 +6,5 @@ __pycache__/
 # すべての.pycファイルと__pycache__フォルダを無視する。
 
 backend/app/db
+.env
 
