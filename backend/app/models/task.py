@@ -2,7 +2,9 @@ from sqlalchemy import Column, Integer, String, DateTime, Text, ForeignKey
 from sqlalchemy.orm import relationship, backref
 from datetime import datetime,timezone
 from app.database.session import Base
+from zoneinfo import ZoneInfo
 
+JST = ZoneInfo("Asia/Tokyo")
 
 class Task(Base):
     __tablename__ = "tasks"
@@ -33,8 +35,8 @@ class Task(Base):
     created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
     updated_by = Column(Integer, ForeignKey("users.id"), nullable=True)
 
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=lambda: datetime.now(JST))
+    updated_at = Column(DateTime, default=lambda: datetime.now(JST), onupdate=lambda: datetime.now(timezone.utc))
 
 
     # リレーション
