@@ -15,8 +15,7 @@ app = FastAPI()
 
 
 origins = [
-    # Docker環境でのアクセス
-    "http://frontend:5173",
+    "http://localhost:5174",
     # 本番環境のドメインをここに追加
 ]
 
