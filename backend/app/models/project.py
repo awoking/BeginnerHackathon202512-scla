@@ -15,7 +15,7 @@ class Project(Base):
     creator_id = Column(Integer, ForeignKey("users.id"), nullable=False)
 
     created_at = Column(DateTime, default=lambda: datetime.now(JST))
-    updated_at = Column(DateTime, default=lambda: datetime.now(JST), onupdate=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(JST), onupdate=lambda: datetime.now(JST))
 
     creator = relationship("User")
     members = relationship("ProjectMember", back_populates="project", cascade="all, delete")

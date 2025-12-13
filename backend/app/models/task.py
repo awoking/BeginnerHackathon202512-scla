@@ -36,7 +36,7 @@ class Task(Base):
     updated_by = Column(Integer, ForeignKey("users.id"), nullable=True)
 
     created_at = Column(DateTime, default=lambda: datetime.now(JST))
-    updated_at = Column(DateTime, default=lambda: datetime.now(JST), onupdate=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(JST), onupdate=lambda: datetime.now(JST))
 
 
     # リレーション
