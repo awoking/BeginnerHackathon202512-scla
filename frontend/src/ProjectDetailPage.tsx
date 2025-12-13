@@ -56,7 +56,7 @@ export function ProjectDetailPage() {
 
   // タスク作成用
   const [isTaskDialogOpen, setIsTaskDialogOpen] = useState(false);
-  const [parentTaskId, setParentTaskId] = useState<number | null>(null); // 子タスク作成時の親ID
+  const [parentTaskId, setParentTaskId] = useState<number | null>(null); // サブタスク作成時の親ID
   const [newTask, setNewTask] = useState<Omit<TaskCreate, "project_id">>({
     title: "",
     description: "",
@@ -260,14 +260,14 @@ export function ProjectDetailPage() {
       if (!token) throw new Error("認証トークンがありません");
       if (!projectId) throw new Error("プロジェクトIDがありません");
 
-      // 子タスクの場合、親タスクの期限チェック
+      // サブタスクの場合、メインタスクの期限チェック
       if (parentTaskId && newTask.deadline) {
         const parentTask = tasks.find((t) => t.id === parentTaskId);
         if (parentTask && parentTask.deadline) {
           const childDeadline = new Date(newTask.deadline);
           const parentDeadline = new Date(parentTask.deadline);
           if (childDeadline > parentDeadline) {
-            throw new Error("子タスクの期限は親タスクの期限以前に設定してください。");
+            throw new Error("サブタスクの期限はメインタスクの期限以前に設定してください。");
           }
         }
       }
@@ -317,7 +317,7 @@ export function ProjectDetailPage() {
       const token = getToken();
       if (!token) throw new Error("認証トークンがありません");
 
-      // 親タスクを完了にしようとする場合、すべての子タスクが完了しているか確認
+      // メインタスクを完了にしようとする場合、すべてのサブタスクが完了しているか確認
       if (newStatus === "completed") {
         const currentTask = tasks.find((t) => t.id === taskId);
         if (currentTask) {
@@ -325,7 +325,7 @@ export function ProjectDetailPage() {
           if (children.length > 0) {
             const allChildrenCompleted = children.every((c) => c.status === "completed");
             if (!allChildrenCompleted) {
-              setError("子タスクをすべて完了させてから、親タスクを完了にしてください。");
+              setError("サブタスクをすべて完了させてから、メインタスクを完了にしてください。");
               return;
             }
           }
@@ -694,9 +694,9 @@ export function ProjectDetailPage() {
                 </Button>
               </DialogTrigger>
               <DialogContent>
-                <DialogHeader>
+                  <DialogHeader>
                   <DialogTitle>
-                    {parentTaskId ? "子タスクを作成" : "新しいタスクを作成"}
+                    {parentTaskId ? "サブタスクを作成" : "新しいタスクを作成"}
                   </DialogTitle>
                   <DialogDescription>
                     タスクの詳細を入力してください
@@ -749,7 +749,7 @@ export function ProjectDetailPage() {
                     />
                     {parentTaskId && tasks.find((t) => t.id === parentTaskId)?.deadline && (
                       <p className="text-xs text-gray-500 mt-1">
-                        親タスクの期限: {formatDate(tasks.find((t) => t.id === parentTaskId)?.deadline)}
+                        メインタスクの期限: {formatDate(tasks.find((t) => t.id === parentTaskId)?.deadline)}
                       </p>
                     )}
                   </div>
@@ -944,7 +944,7 @@ export function ProjectDetailPage() {
                       const childCount = tasks.filter((t) => t.parent_id === task.id).length;
                       return (
                         <div key={task.id}>
-                          {/* 親タスク */}
+                          {/* メインタスク */}
                           <Card className={`p-3 shadow-lg rounded-none ${getTaskBackgroundClass(task)}`}>
                             <div className="flex items-start justify-between gap-2">
                               <div className="flex-1 flex items-start gap-1.5">
@@ -992,7 +992,7 @@ export function ProjectDetailPage() {
                                   size="sm"
                                   className="h-8 w-8 p-0"
                                   onClick={() => handleCreateSubtask(task.id)}
-                                  title="子タスク作成"
+                                  title="サブタスク作成"
                                 >
                                   <Plus className="h-4 w-4" />
                                 </Button>
@@ -1021,12 +1021,12 @@ export function ProjectDetailPage() {
                             </div>
                             {childCount > 0 && !expandedMap[task.id] && (
                               <div className="text-xs text-gray-400 ml-5 mt-1">
-                                子タスク {childCount}件
+                                サブタスク {childCount}件
                               </div>
                             )}
                           </Card>
 
-                          {/* 子タスク */}
+                          {/* サブタスク */}
                           {expandedMap[task.id] && tasks
                             .filter((subtask) => subtask.parent_id === task.id)
                             .filter((t) => (showCompleted || t.status !== "completed") && (showOverdue || !isOverdue(t)))
@@ -1081,7 +1081,7 @@ export function ProjectDetailPage() {
                                           size="sm"
                                           className="h-7 w-7 p-0"
                                           onClick={() => handleCreateSubtask(subtask.id)}
-                                          title="子タスク作成"
+                                          title="サブタスク作成"
                                         >
                                           <Plus className="h-3.5 w-3.5" />
                                         </Button>
@@ -1112,11 +1112,11 @@ export function ProjectDetailPage() {
 
                                   {grandCount > 0 && !expandedMap[subtask.id] && (
                                     <div className="text-xs text-gray-400 ml-5 mt-1">
-                                      子タスク {grandCount}件
+                                      サブタスク {grandCount}件
                                     </div>
                                   )}
 
-                                  {/* 孫タスク */}
+                                  {/* ミニタスク */}
                                   {expandedMap[subtask.id] && tasks
                                     .filter((grand) => grand.parent_id === subtask.id)
                                     .filter((t) => (showCompleted || t.status !== "completed") && (showOverdue || !isOverdue(t)))

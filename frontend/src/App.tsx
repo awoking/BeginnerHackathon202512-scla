@@ -128,7 +128,7 @@ function App() {
       const token = getToken();
       if (!token) return;
 
-      // 親タスクを完了にしようとする場合、すべての子タスクが完了しているか確認
+      // メインタスクを完了にしようとする場合、すべてのサブタスクが完了しているか確認
       if (newStatus === "completed") {
         const currentTask = tasks.find((t) => t.id === taskId);
         if (currentTask) {
@@ -136,7 +136,7 @@ function App() {
           if (children && children.length > 0) {
             const allChildrenCompleted = children.every((c) => c.status === "completed");
             if (!allChildrenCompleted) {
-              setError("子タスクをすべて完了させてから、親タスクを完了にしてください。");
+              setError("サブタスクをすべて完了させてから、メインタスクを完了にしてください。");
               return;
             }
           }
@@ -159,7 +159,7 @@ function App() {
       }
       setLeafTaskIds(leaves);
       setTasks(data);
-      // 更新後、展開中の子タスクも再取得したければここで対応可能
+      // 更新後、展開中のサブタスクも再取得したければここで対応可能
     } catch {
       // noop
     }

@@ -82,7 +82,7 @@ export class TaskApi {
     return response.json();
   }
 
-  // 子タスク取得
+  // サブタスク取得
   static async getChildren(token: string, taskId: number): Promise<Task[]> {
     const response = await fetch(`${API_BASE_URL}/tasks/${taskId}/children`, {
       headers: {
@@ -92,7 +92,7 @@ export class TaskApi {
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.detail || "子タスクの取得に失敗しました");
+      throw new Error(errorData.detail || "サブタスクの取得に失敗しました");
     }
 
     return response.json();
