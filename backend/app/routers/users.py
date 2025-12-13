@@ -36,6 +36,7 @@ def create_user(user_in: UserCreate, db: Session = Depends(get_db)):
     )
 
     db.add(new_user)
+
     db.commit()
     db.refresh(new_user)
 
@@ -59,7 +60,7 @@ def icon_change(
         current_user.icon = payload.icon 
 
     db.add(current_user)
-    db.comit(current_user)
+    db.commit()
     db.refresh(current_user)
 
     return current_user
