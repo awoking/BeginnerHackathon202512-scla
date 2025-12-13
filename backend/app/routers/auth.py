@@ -8,8 +8,13 @@ from app.database.session import get_db
 from app.core.security import verify_password
 from app.schemas.auth import Token
 
-SECRET_KEY = "YOUR_SECRET_KEY"
-ALGORITHM = "HS256"
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+SECRET_KEY = os.getenv("SECRET_KEY", "YOUR_SECRET_KEY")
+ALGORITHM = os.getenv("ALGORITHM", "HS256")
 
 router = APIRouter(
     prefix="/auth",
