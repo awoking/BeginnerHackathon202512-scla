@@ -19,6 +19,7 @@ origins = [
     "http://localhost:5173",
     # Docker環境でのアクセス
     "http://frontend:5173",
+    # 本番環境のドメインをここに追加
 ]
 
 app.add_middleware(

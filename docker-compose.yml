@@ -9,6 +9,8 @@ services:
       - ./backend:/app
       # FastAPIの開発サーバーを起動し、コード変更時に自動リロードする
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    netoworks:
+      - app-network
 
   # 2. React (フロントエンド) サービス
   frontend:
@@ -28,3 +30,9 @@ services:
     command: sh -c "npm install && npm run dev"
     depends_on:
       - backend
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
