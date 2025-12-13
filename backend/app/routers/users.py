@@ -3,8 +3,11 @@ from sqlalchemy.orm import Session
 
 from app.database.session import get_db
 from app.models.user import User
-from app.schemas.user import UserCreate, UserRead
+from app.schemas.user import UserCreate, UserRead, UserUpdate
 from app.core.security import hash_password
+from app.core.auth import get_current_user
+
+
 
 router = APIRouter(
     prefix="/users",
@@ -44,3 +47,19 @@ def create_user(user_in: UserCreate, db: Session = Depends(get_db)):
 def get_all_users(db: Session = Depends(get_db)):
     users = db.query(User).all()
     return users
+
+@router.patch("/icon")
+def icon_change(
+    payload: UserUpdate, 
+    db: Session = Depends(get_db), 
+    current_user: User = Depends(get_current_user),
+    ):
+    
+    if payload.icon is not None:
+        current_user.icon = payload.icon 
+
+    db.add(current_user)
+    db.comit(current_user)
+    db.refresh(current_user)
+
+    return current_user
