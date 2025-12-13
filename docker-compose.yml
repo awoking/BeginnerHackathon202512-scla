@@ -8,7 +8,7 @@ services:
       # ソースコードのホットリロードマウント
       - ./backend:/app
       # FastAPIの開発サーバーを起動し、コード変更時に自動リロードする
-    command: uvicorn app.main:app  --port 8000 --reload
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
   # 2. React (フロントエンド) サービス
   frontend:
