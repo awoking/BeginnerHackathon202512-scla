@@ -20,14 +20,14 @@ router = APIRouter(prefix="/projects", tags=["projects"])
     "/{project_id}/members/me",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="プロジェクトから脱退（自分自身）",
-    description="認証済みユーザーが、指定されたプロジェクトから脱退します。プロジェクト作成者（creator）は脱退できません。",
+    description="認証済みユーザーが、指定されたプロジェクトから脱退します。ADMINロールのメンバーは脱退できません。",
 )
 def leave_project(
     project_id: int,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    # 1. プロジェクトの存在確認
+    #プロジェクトの存在確認
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
         raise HTTPException(
@@ -35,14 +35,30 @@ def leave_project(
             detail="プロジェクトが見つかりません。",
         )
 
-    # 2. プロジェクト作成者（creator_id）は脱退できない
-    if project.creator_id == current_user.id:
+    #自分の ProjectMember レコードを検索
+    member_record = (
+        db.query(ProjectMember)
+        .filter(
+            ProjectMember.user_id == current_user.id,
+            ProjectMember.project_id == project_id
+        )
+        .first()
+    )
+
+    if not member_record:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="このプロジェクトに参加していません。",
+        )
+    
+    #ADMIN ロールは脱退できない
+    if member_record.role == ROLE_ADMIN:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="プロジェクト作成者（オーナー）は脱退できません。プロジェクトを削除するか、オーナー権限を移譲する必要があります。",
+            detail="ADMINロールのメンバーは脱退できません。別のメンバーにADMIN権限を移譲してから脱退してください。",
         )
 
-    # 3. 自分の ProjectMember レコードを検索
+    #自分の ProjectMember レコードを検索
     member_record = (
         db.query(ProjectMember)
         .filter(
@@ -58,7 +74,7 @@ def leave_project(
             detail="このプロジェクトに参加していません。",
         )
         
-    # 4. 担当タスクをプロジェクト作成者に付け替える (remove_memberのロジックを踏襲)
+    #担当タスクをプロジェクト作成者に付け替える (remove_memberのロジックを踏襲)
     tasks_to_reassign = (
         db.query(Task)
         .filter(Task.project_id == project_id, Task.assignee_id == current_user.id)
@@ -72,11 +88,11 @@ def leave_project(
         db.add(task)
         # 注: 担当者変更の履歴 (TaskHistory) 記録はここでは省略します。
 
-    # 5. メンバーシップレコードを削除
+    #メンバーシップレコードを削除
     db.delete(member_record)
     db.commit()
 
-    # 成功時には 204 No Content を返す
+    #成功時には 204 No Content を返す
     return None
 
 
