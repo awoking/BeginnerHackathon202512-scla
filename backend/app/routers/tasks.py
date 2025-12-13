@@ -18,6 +18,8 @@ from app.schemas.task import (
     TaskUpdate,
     TaskWithProjectRead,
 )
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
@@ -76,6 +78,17 @@ def create_task(
     )
     db.add(history)
     db.commit()
+
+    now = datetime.now(ZoneInfo("Asia/Tokyo"))
+    if task.deadline:
+        # deadlineにJST情報を付与して比較可能にする
+        deadline_aware = task.deadline.replace(tzinfo=ZoneInfo("Asia/Tokyo"))
+        # 期限が現在より前なら揶揄う
+        if deadline_aware < now:
+            raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="計画性がありません"  # ここでふざける
+            )
 
     return task
 
