@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -20,6 +20,14 @@ function App() {
   const [activeView, setActiveView] = useState<"timeline" | "calendar">("timeline");
   const [calendarDate, setCalendarDate] = useState<Date>(new Date());
   const [leafTaskIds, setLeafTaskIds] = useState<Set<number>>(new Set());
+  const [isSlimeVisible, setIsSlimeVisible] = useState(true);
+  const [isSlimeDead, setIsSlimeDead] = useState(false);
+  const [slimeInstance, setSlimeInstance] = useState(0);
+  const slimeRef = useRef<HTMLImageElement | null>(null);
+  const respawnDelay = 20000; // ミリ秒 — 再出現までの遅延
+  const deadHideDelay = 3000; // ミリ秒 — クリック後にdead表示を保持する時間
+  const respawnTimerRef = useRef<number | null>(null);
+  const hideTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -52,6 +60,17 @@ function App() {
     };
     load();
   }, [getToken]);
+
+  useEffect(() => {
+    return () => {
+      if (respawnTimerRef.current) {
+        window.clearTimeout(respawnTimerRef.current);
+      }
+      if (hideTimerRef.current) {
+        window.clearTimeout(hideTimerRef.current);
+      }
+    };
+  }, []);
 
   const formatDate = (dateString?: string) => {
     if (!dateString) return "期限なし";
@@ -175,19 +194,64 @@ function App() {
       `}</style>
       {/* fixed overlay so animation doesn't affect page layout or create horizontal scroll */}
       <div style={{ position: 'fixed', top: '48px', left: 0, width: '100vw', height: 0, pointerEvents: 'none', overflow: 'visible', zIndex: 9999 }}>
-        <img
-          src="/images/slime.gif"
-          alt="slime"
-          style={{
-            position: 'absolute',
-            left: 0,
-            top: 0,
-            width: '48px',
-            height: '48px',
-            transform: 'translateX(-48px)',
-            animation: 'slimeMoveLR 60s linear infinite',
-          }}
-        />
+        {isSlimeVisible && (
+          <img
+            key={slimeInstance}
+            ref={slimeRef}
+            src={isSlimeDead ? '/images/slime_dead.gif' : '/images/slime.gif'}
+            alt="slime"
+            onClick={() => {
+              if (!slimeRef.current) return;
+              if (isSlimeDead) return;
+              // 現在の transform を取得して固定し、アニメーションを止める
+              try {
+                const cs = window.getComputedStyle(slimeRef.current).transform;
+                slimeRef.current.style.transform = cs;
+              } catch {
+                // noop
+              }
+              slimeRef.current.style.animation = 'none';
+              setIsSlimeDead(true);
+
+              // dead 表示を少し置いてから隠し、再出現タイマーをセット
+              if (hideTimerRef.current) window.clearTimeout(hideTimerRef.current);
+              hideTimerRef.current = window.setTimeout(() => {
+                setIsSlimeVisible(false);
+                setIsSlimeDead(false);
+                // 再出現
+                if (respawnTimerRef.current) window.clearTimeout(respawnTimerRef.current);
+                respawnTimerRef.current = window.setTimeout(() => {
+                  setSlimeInstance((s) => s + 1);
+                  setIsSlimeVisible(true);
+                }, respawnDelay);
+              }, deadHideDelay);
+            }}
+            onAnimationEnd={() => {
+              // アニメーションが終わった（移動が完了した）ら消す（死亡状態でない場合）
+              if (isSlimeDead) return;
+              setIsSlimeVisible(false);
+              // 再出現タイマーをセット
+              if (respawnTimerRef.current) window.clearTimeout(respawnTimerRef.current);
+              respawnTimerRef.current = window.setTimeout(() => {
+                setSlimeInstance((s) => s + 1);
+                setIsSlimeVisible(true);
+              }, respawnDelay);
+            }
+            }
+            style={{
+              position: 'absolute',
+              left: 0,
+              top: 0,
+              width: '48px',
+              height: '48px',
+              transform: 'translateX(-48px)',
+              animation: isSlimeDead ? 'none' : 'slimeMoveLR 60s linear',
+              animationFillMode: 'forwards',
+              cursor: 'pointer',
+              pointerEvents: 'auto',
+            }}
+          />
+        )}
       </div>
       <div className="mb-6">
         <h1 className="text-3xl font-bold mb-4">ダッシュボード</h1>
