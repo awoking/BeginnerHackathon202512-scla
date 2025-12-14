@@ -452,3 +452,45 @@ def update_task(
         db.commit()
 
     return task
+
+@router.get("/overdue/assigned/me", response_model=list[TaskWithProjectRead])
+def list_my_assigned_overdue_tasks(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    JST = ZoneInfo("Asia/Tokyo")
+    now_naive_jst = datetime.now(JST).replace(tzinfo=None)
+
+    tasks_and_projects = (
+        db.query(Task, Project)
+        .join(Project, Task.project_id == Project.id)
+        .filter(
+            Task.assignee_id == current_user.id,
+            Task.deadline != None,  # 期限が設定されている
+            Task.status != "completed",  # 未完了
+            Task.deadline < now_naive_jst  # 期限超過
+        )
+        .order_by(Task.deadline.asc()) # 古い順（より期限が過ぎているもの）にソート
+        .all()
+    )
+
+    result = []
+    for task, project in tasks_and_projects:
+        result.append({
+            "id": task.id,
+            "title": task.title,
+            "description": task.description,
+            "deadline": task.deadline,
+            "project_id": task.project_id,
+            "parent_id": task.parent_id,
+            "status": task.status,
+            "priority": task.priority,
+            "assignee_id": task.assignee_id,
+            "created_by": task.created_by,
+            "updated_by": task.updated_by,
+            "created_at": task.created_at,
+            "updated_at": task.updated_at,
+            "project_name": project.name,
+            "project_creator_username": project.creator.username if project.creator else "Unknown",
+        })
+    return result
