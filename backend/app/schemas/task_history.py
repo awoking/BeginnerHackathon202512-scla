@@ -11,7 +11,7 @@ class TaskHistoryBase(BaseModel):
 class TaskHistoryCreate(TaskHistoryBase):
     pass
 
-class TaskHistory(TaskHistoryBase):
+class TaskHistoryRead(TaskHistoryBase):
     id: int
     created_at: datetime
 
