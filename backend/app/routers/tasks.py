@@ -70,7 +70,7 @@ router = APIRouter(prefix="/tasks", tags=["tasks"])
 @router.post("/", response_model=TaskRead)
 def create_task(
     task_in: TaskCreate,
-    background_tasks: BackgroundTasks,
+    #background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -132,10 +132,10 @@ def create_task(
     )
     db.add(history)
     db.commit()
-    if task_in.priority >= 3:
+    #if task_in.priority >= 3:
         # add_task(関数名, 引数1, 引数2...) の形で登録
         # ここでは関数を呼ぶのではなく予約するだけ。一瞬で終わります
-        background_tasks.add_task(send_bot, task.title, task.priority)
+        #background_tasks.add_task(send_bot, task.title, task.priority)
 
     # ユーザーには即座にJSONを返す
 
@@ -432,9 +432,9 @@ def update_task(
     if changes:
         db.add(TaskHistory(task_id=task.id, user_id=current_user.id, action_type="UPDATE", changes=", ".join(changes)))
         db.commit()
-    if payload.priority >= 3:
+    #if payload.priority >= 3:
         # add_task(関数名, 引数1, 引数2...) の形で登録
         # ここでは関数を呼ぶのではなく予約するだけ。一瞬で終わります
-        background_tasks.add_task(send_bot, task.title, task.priority)
+        #background_tasks.add_task(send_bot, task.title, task.priority)
 
     return task
