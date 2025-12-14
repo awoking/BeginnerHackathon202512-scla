@@ -10,7 +10,8 @@ class UserCreate(UserBase):
     icon: Optional[int] = None
 
 class UserRead(UserBase):
-    id: int = 1
+    id: int
+    icon: int
 
     class Config:
         from_attributes = True
