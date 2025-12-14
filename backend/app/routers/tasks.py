@@ -215,6 +215,42 @@ def get_task_history(
 
     return history
 
+@router.get("/projects/{project_id}/history", response_model=list[TaskHistoryRead])
+def list_project_history(
+    project_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    from app.core.permissions import user_project_role
+    role = user_project_role(db, current_user.id, project_id)
+    if role is None:
+        project_exists = db.query(Project).filter(Project.id == project_id).first() #
+        if not project_exists:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="プロジェクトが見つかりません")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="プロジェクトメンバーのみ履歴を閲覧可能です")
+
+    # プロジェクト内のすべてのタスクIDを取得
+    task_ids = (
+        db.query(Task.id)
+        .filter(Task.project_id == project_id) #
+        .all()
+    )
+    # (task_id, ) のタプルリストから ID のリストに変換
+    task_id_list = [id_tuple[0] for id_tuple in task_ids]
+
+    if not task_id_list:
+        return []
+
+    # 取得したタスクIDに紐づくすべての履歴を取得し、新しい順にソート
+    history = (
+        db.query(TaskHistory)
+        .filter(TaskHistory.task_id.in_(task_id_list))
+        .order_by(TaskHistory.created_at.desc()) #
+        .all()
+    )
+
+    return history
+
 @router.get("/projects/{project_id}", response_model=list[TaskRead])
 def list_project_tasks(
     project_id: int,
