@@ -15,7 +15,7 @@ app = FastAPI()
 
 
 origins = [
-    "http://localhost:5174",
+    "http://genseki.f5.si:5173",
     # 本番環境のドメインをここに追加
 ]
 
