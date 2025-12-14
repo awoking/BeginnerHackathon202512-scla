@@ -18,6 +18,7 @@ from app.schemas.task import (
     TaskUpdate,
     TaskWithProjectRead,
 )
+from app.schemas.task_history import TaskHistoryRead
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -181,6 +182,38 @@ def list_project_roots(
     visible = [t for t in tasks if can_view_task(db, current_user, t)]
     return visible
 
+@router.get("/{task_id}/history", response_model=list[TaskHistoryRead])
+def get_task_history(
+    task_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    # 1. タスクの存在確認
+    task = db.query(Task).filter(Task.id == task_id).first()
+
+    if not task:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="タスクが見つかりません"
+        )
+
+    # 2. 閲覧権限チェック
+    # can_view_task は app/core/permissions.py で定義されている
+    if not can_view_task(db, current_user, task):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="このタスクの履歴を閲覧する権限がありません"
+        )
+
+    # 3. 履歴の取得（作成日の新しいもの順にソート）
+    history = (
+        db.query(TaskHistory)
+        .filter(TaskHistory.task_id == task_id)
+        .order_by(TaskHistory.created_at.desc())
+        .all()
+    )
+
+    return history
 
 @router.get("/projects/{project_id}", response_model=list[TaskRead])
 def list_project_tasks(
