@@ -7,7 +7,7 @@ const getApiBaseUrl = (): string => {
   }
   // Docker環境か開発環境かを判定（簡易版）
   // Docker内では window.location.hostname が異なるため、フォールバック
-  return "http://localhost:8000";
+  return "http://genseki.f5.si:8000";
 };
 
 export const API_BASE_URL = getApiBaseUrl();
