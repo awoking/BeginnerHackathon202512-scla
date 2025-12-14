@@ -55,7 +55,7 @@ def leave_project(
     if member_record.role == ROLE_ADMIN:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="ADMINロールのメンバーは脱退できません。別のメンバーにADMIN権限を移譲してから脱退してください。",
+            detail="管理者は脱退できません。",
         )
 
     #自分の ProjectMember レコードを検索
