@@ -480,11 +480,12 @@ export function ProjectDetailPage() {
         setError("プロジェクト作成者は脱退できません");
         return;
       }
-      await ProjectApi.removeMember(token, parseInt(projectId, 10), member.id);
-      // 自分が脱退した場合はプロジェクト一覧へ遷移
+      // 自分自身の脱退は専用エンドポイントへ（/members/me）
       if (member.user_id === currentUserId) {
+        await ProjectApi.leaveProject(token, parseInt(projectId, 10));
         navigate("/projects");
       } else {
+        await ProjectApi.removeMember(token, parseInt(projectId, 10), member.id);
         loadMembers();
       }
     } catch (err) {
@@ -1499,7 +1500,7 @@ export function ProjectDetailPage() {
                         <SelectItem value="ADMIN">管理者</SelectItem>
                       </SelectContent>
                     </Select>
-                    {isAdmin && project && member.user_id !== project.creator_id && (
+                    {isAdmin && project && member.user_id !== project.creator_id && member.user_id !== currentUserId && (
                       <Button
                         variant="destructive"
                         size="sm"
@@ -1508,12 +1509,14 @@ export function ProjectDetailPage() {
                         削除
                       </Button>
                     )}
-                    {/* 自分自身の場合は脱退ボタンを表示（作成者は除外） */}
-                    {member.user_id === currentUserId && (!project || member.user_id !== project.creator_id) && (
+                    {/* 自分自身の場合は脱退ボタンを表示。ただし ADMIN の場合は脱退不可なので無効化 */}
+                    {member.user_id === currentUserId && (
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={() => handleLeaveProject(member)}
+                        disabled={member.role === "ADMIN" || (project && member.user_id === project.creator_id)}
+                        title={member.role === "ADMIN" || (project && member.user_id === project.creator_id) ? "ADMINは脱退できません" : undefined}
                       >
                         脱退
                       </Button>

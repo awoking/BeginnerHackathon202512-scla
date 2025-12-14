@@ -220,4 +220,22 @@ export class ProjectApi {
       throw new Error(errorData.detail || "メンバーの削除に失敗しました");
     }
   }
+
+  // 自分がプロジェクトから脱退する（/members/me）
+  static async leaveProject(token: string, projectId: number): Promise<void> {
+    const response = await fetch(
+      `${API_BASE_URL}/projects/${projectId}/members/me`,
+      {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.detail || "プロジェクトからの脱退に失敗しました");
+    }
+  }
 }
