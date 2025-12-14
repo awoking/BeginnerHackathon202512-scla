@@ -249,7 +249,20 @@ def list_project_history(
         .all()
     )
 
-    return history
+    # Pydantic schema now expects username; build list of dicts including related user.username
+    result = []
+    for h in history:
+        result.append({
+            "id": h.id,
+            "task_id": h.task_id,
+            "user_id": h.user_id,
+            "username": h.user.username if getattr(h, "user", None) else None,
+            "action_type": h.action_type,
+            "changes": h.changes,
+            "created_at": h.created_at,
+        })
+
+    return result
 
 @router.get("/projects/{project_id}", response_model=list[TaskRead])
 def list_project_tasks(

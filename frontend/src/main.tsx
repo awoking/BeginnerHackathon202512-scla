@@ -12,6 +12,7 @@ import { RegisterPage } from "./RegisterPage.tsx";
 import { TasksPage } from "./TasksPage.tsx";
 import { ProjectsPage } from "./ProjectsPage.tsx";
 import { ProjectDetailPage } from "./ProjectDetailPage.tsx";
+import { OverduePage } from "./OverduePage.tsx";
 
 const router = createBrowserRouter([
   {
@@ -52,6 +53,16 @@ const router = createBrowserRouter([
       <ProtectedRoute>
         <DashboardLayout>
           <ProjectDetailPage />
+        </DashboardLayout>
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/tasks/overdue",
+    element: (
+      <ProtectedRoute>
+        <DashboardLayout>
+          <OverduePage />
         </DashboardLayout>
       </ProtectedRoute>
     ),

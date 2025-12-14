@@ -13,6 +13,7 @@ class TaskHistoryCreate(TaskHistoryBase):
 
 class TaskHistoryRead(TaskHistoryBase):
     id: int
+    username: str | None = None
     created_at: datetime
 
     class Config:

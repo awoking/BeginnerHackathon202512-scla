@@ -1,4 +1,8 @@
 import { useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
+import { Bell } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { TaskApi } from "@/services/TaskApi";
 import { API_BASE_URL } from "@/config/constants";
 import { useNavigate } from "react-router-dom";
 import {
@@ -43,6 +47,8 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loadingProjects, setLoadingProjects] = useState(false);
   const [currentUser, setCurrentUser] = useState<{ id: number; username: string; icon: number } | null>(null);
+  const [overdueCount, setOverdueCount] = useState<number>(0);
+  const location = useLocation();
 
   const handleLogout = () => {
     logout();
@@ -77,6 +83,21 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     };
     loadUser();
   }, [getToken]);
+
+  useEffect(() => {
+    // fetch overdue notifications on mount and on navigation
+    const fetchOverdue = async () => {
+      try {
+        const token = getToken();
+        if (!token) return;
+        const items = await TaskApi.getMyOverdueAssigned(token);
+        setOverdueCount(items.length);
+      } catch {
+        setOverdueCount(0);
+      }
+    };
+    fetchOverdue();
+  }, [getToken, location.pathname]);
 
   return (
     <SidebarProvider>
@@ -155,6 +176,16 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
               <SidebarTrigger />
               {currentUser && (
                 <div className="flex items-center gap-3">
+                  <button
+                    className="relative p-1 hover:bg-gray-100 rounded"
+                    onClick={() => navigate("/tasks/overdue")}
+                    title="期限超過タスクを見る"
+                  >
+                    <Bell className="h-5 w-5 text-gray-700" />
+                    {overdueCount > 0 && (
+                      <Badge className="absolute -top-1 -right-1">{overdueCount}</Badge>
+                    )}
+                  </button>
                   <img
                     src={`/images/kkrn_icon_user_${currentUser.icon}.png`}
                     alt={currentUser.username}

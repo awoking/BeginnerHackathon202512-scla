@@ -38,7 +38,7 @@ import { ERROR_MESSAGES } from "@/config/constants";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { isOverdue, getTaskBackgroundClass } from "@/lib/task-utils";
 
-type TabType = "tasks" | "members" | "settings";
+type TabType = "tasks" | "members" | "settings" | "history";
 
 export function ProjectDetailPage() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -91,6 +91,8 @@ export function ProjectDetailPage() {
   // タスク編集用
   const [isTaskEditOpen, setIsTaskEditOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [historyItems, setHistoryItems] = useState<Array<any>>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   // 編集フォーム用フィールド
   const [editTaskTitle, setEditTaskTitle] = useState("");
   const [editTaskDescription, setEditTaskDescription] = useState<string | undefined>(undefined);
@@ -121,6 +123,26 @@ export function ProjectDetailPage() {
       loadMembers();
     }
   }, [projectId]);
+
+  useEffect(() => {
+    if (activeTab === "history" && projectId) {
+      loadHistory();
+    }
+  }, [activeTab, projectId]);
+
+  const loadHistory = async () => {
+    setIsLoadingHistory(true);
+    try {
+      const token = getToken();
+      if (!token || !projectId) return;
+      const data = await TaskApi.getProjectHistory(token, parseInt(projectId, 10));
+      setHistoryItems(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : ERROR_MESSAGES.GENERIC_ERROR);
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  };
 
   useEffect(() => {
     if (projectId && activeTab === "tasks") {
@@ -674,6 +696,16 @@ export function ProjectDetailPage() {
           >
             <Settings className="inline-block mr-2 h-4 w-4" />
             設定
+          </button>
+          <button
+            onClick={() => setActiveTab("history")}
+            className={`py-4 px-1 border-b-2 font-medium text-sm ${
+              activeTab === "history"
+                ? "border-blue-500 text-blue-600"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+            }`}
+          >
+            履歴
           </button>
         </nav>
       </div>
@@ -1400,6 +1432,35 @@ export function ProjectDetailPage() {
                   );
                 })}
               </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 履歴タブ */}
+      {activeTab === "history" && (
+        <div>
+          <h2 className="text-xl font-semibold mb-4">プロジェクト履歴</h2>
+          {isLoadingHistory ? (
+            <p className="text-gray-500">読み込み中...</p>
+          ) : historyItems.length === 0 ? (
+            <p className="text-gray-500">履歴はありません。</p>
+          ) : (
+            <div className="space-y-3">
+              {historyItems.map((h) => (
+                <div key={h.id} className="p-3 border rounded bg-white">
+                  <div className="flex items-center justify-between text-sm text-gray-600">
+                    <div>
+                      <strong>{h.username || '不明なユーザー'}</strong>
+                      <span className="ml-2 text-xs text-gray-500">{new Date(h.created_at).toLocaleString()}</span>
+                    </div>
+                    <div className="text-xs text-gray-700">{h.action_type}</div>
+                  </div>
+                  {h.changes && (
+                    <div className="mt-2 text-sm text-gray-700">{h.changes}</div>
+                  )}
+                </div>
+              ))}
             </div>
           )}
         </div>

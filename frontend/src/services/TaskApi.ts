@@ -262,4 +262,36 @@ export class TaskApi {
 
     return response.json();
   }
+
+  // プロジェクト全体の履歴取得
+  static async getProjectHistory(token: string, projectId: number): Promise<any[]> {
+    const response = await fetch(`${API_BASE_URL}/tasks/projects/${projectId}/history`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.detail || "プロジェクト履歴の取得に失敗しました");
+    }
+
+    return response.json();
+  }
+
+  // 自分の期限超過タスク取得（通知用）
+  static async getMyOverdueAssigned(token: string): Promise<Task[]> {
+    const response = await fetch(`${API_BASE_URL}/tasks/overdue/assigned/me`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.detail || "期限超過タスクの取得に失敗しました");
+    }
+
+    return response.json();
+  }
 }
