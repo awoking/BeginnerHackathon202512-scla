@@ -42,12 +42,13 @@ def create_user(user_in: UserCreate, db: Session = Depends(get_db)):
 
     return new_user
 
-
+"""
 # 全ユーザー取得（デバッグ用）
 @router.get("/all", response_model=list[UserRead])
 def get_all_users(db: Session = Depends(get_db)):
     users = db.query(User).all()
     return users
+"""
 
 @router.get("/me", response_model=UserRead)
 def get_current_user_info(current_user: User = Depends(get_current_user)):
