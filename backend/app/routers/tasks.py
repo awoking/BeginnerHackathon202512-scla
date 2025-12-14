@@ -18,8 +18,50 @@ from app.schemas.task import (
     TaskUpdate,
     TaskWithProjectRead,
 )
-from datetime import datetime
-from zoneinfo import ZoneInfo
+
+import httpx
+from fastapi import BackgroundTasks  # あとでやる機能のために日露
+
+import os
+from dotenv import load_dotenv
+load_dotenv()
+
+
+def send_bot(title: str, priority: int):
+    """
+    仕様書B: 緊急タスク発生時のWebhook通知
+    これは BackgroundTasks によって、レスポンス返却後に裏側で実行されます。
+    """
+    # 接続先 (仕様書通り)
+    url = os.getenv("url")
+    
+    # ヘッダー (仕様書通り)
+    headers = {
+        "Content-Type": "application/json",
+        "X-API-KEY": os.getenv("SHARED_SECRET_KEY")
+    }
+
+    # ボディ (仕様書通り + 変換ロジック)
+    # ※ group_id はプロジェクトごとに本来異なるはずですが、一旦仕様書の例 "123" にします
+    payload = {
+        "group_id": "123", 
+        "title": title,
+        "priority": "high" if priority >= 3 else "normal" # 優先度3以上をHighとみなす例
+    }
+
+    try:
+        # タイムアウト: 1秒以内に設定 (仕様書要件)
+        with httpx.Client(timeout=1.0) as client:
+            response = client.post(url, json=payload, headers=headers)
+            # ステータスコードが200番台以外なら例外を出す
+            response.raise_for_status()
+            print(f"Bot通知成功: {response.status_code}")
+
+    except Exception as e:
+        # 例外処理: エラーは握りつぶしてログ出力のみ (仕様書要件)
+        # Webサービス本体を止めないための重要な処置
+        print(f"Bot通知失敗 (無視): {e}")
+
 
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
@@ -28,6 +70,7 @@ router = APIRouter(prefix="/tasks", tags=["tasks"])
 @router.post("/", response_model=TaskRead)
 def create_task(
     task_in: TaskCreate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -89,6 +132,12 @@ def create_task(
     )
     db.add(history)
     db.commit()
+    if task_in.priority >= 3:
+        # add_task(関数名, 引数1, 引数2...) の形で登録
+        # ここでは関数を呼ぶのではなく予約するだけ。一瞬で終わります
+        background_tasks.add_task(send_bot, task.title, task.priority)
+
+    # ユーザーには即座にJSONを返す
 
     
     return task
@@ -284,6 +333,7 @@ def update_status(
     db.refresh(task)
     db.add(TaskHistory(task_id=task.id, user_id=current_user.id, action_type="STATUS_CHANGE", changes=f"{old} -> {task.status}"))
     db.commit()
+
     return task
 
 
@@ -307,6 +357,7 @@ def update_assignee(
     db.refresh(task)
     db.add(TaskHistory(task_id=task.id, user_id=current_user.id, action_type="ASSIGNEE_CHANGE", changes=f"{old} -> {task.assignee_id}"))
     db.commit()
+
     return task
 
 
@@ -381,5 +432,9 @@ def update_task(
     if changes:
         db.add(TaskHistory(task_id=task.id, user_id=current_user.id, action_type="UPDATE", changes=", ".join(changes)))
         db.commit()
+    if payload.priority >= 3:
+        # add_task(関数名, 引数1, 引数2...) の形で登録
+        # ここでは関数を呼ぶのではなく予約するだけ。一瞬で終わります
+        background_tasks.add_task(send_bot, task.title, task.priority)
 
     return task
