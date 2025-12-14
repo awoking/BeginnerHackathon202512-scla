@@ -49,6 +49,13 @@ def get_all_users(db: Session = Depends(get_db)):
     users = db.query(User).all()
     return users
 
+@router.get("/me", response_model=UserRead)
+def get_current_user_info(current_user: User = Depends(get_current_user)):
+    """現在ログインしているユーザー情報を返すエンドポイント
+
+    フロントエンドはこれを呼んで `id`, `username`, `icon` を取得できます。
+    """
+    return current_user
 @router.patch("/icon")
 def icon_change(
     payload: UserUpdate, 

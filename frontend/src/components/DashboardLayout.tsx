@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { API_BASE_URL } from "@/config/constants";
 import { useNavigate } from "react-router-dom";
 import {
   Sidebar,
@@ -38,9 +39,10 @@ interface DashboardLayoutProps {
 
 export function DashboardLayout({ children }: DashboardLayoutProps) {
   const navigate = useNavigate();
-  const { logout, getToken } = useAuth();
+  const { logout, getToken, fetchWithAuth } = useAuth();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loadingProjects, setLoadingProjects] = useState(false);
+  const [currentUser, setCurrentUser] = useState<{ id: number; username: string; icon: number } | null>(null);
 
   const handleLogout = () => {
     logout();
@@ -62,6 +64,18 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       }
     };
     loadProjects();
+    // load current user
+    const loadUser = async () => {
+      try {
+        const res = await fetchWithAuth(`${API_BASE_URL}/users/me`);
+        if (!res.ok) return;
+        const json = await res.json();
+        setCurrentUser({ id: json.id, username: json.username, icon: json.icon });
+      } catch {
+        // ignore
+      }
+    };
+    loadUser();
   }, [getToken]);
 
   return (
@@ -137,7 +151,19 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         </Sidebar>
         <main className="flex-1">
           <div className="border-b p-4">
-            <SidebarTrigger />
+            <div className="flex items-center justify-between">
+              <SidebarTrigger />
+              {currentUser && (
+                <div className="flex items-center gap-3">
+                  <img
+                    src={`/images/kkrn_icon_user_${currentUser.icon}.png`}
+                    alt={currentUser.username}
+                    className="w-8 h-8 rounded-full object-cover"
+                  />
+                  <div className="text-sm font-medium">{currentUser.username}</div>
+                </div>
+              )}
+            </div>
           </div>
           <div className="p-6">{children}</div>
         </main>
